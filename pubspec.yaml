@@ -1,0 +1,38 @@
+name: zefirka_voice
+description: Голосовой пульт для Зефирки
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  
+  # Vosk — распознавание речи
+  vosk_flutter: ^0.3.0
+  
+  # WebSocket — отправка команд на OSSM
+  web_socket_channel: ^3.0.0
+  
+  # Хранение настроек
+  shared_preferences: ^2.2.2
+  
+  # Путь к файлам
+  path_provider: ^2.1.1
+  
+  # Фоновый сервис
+  flutter_background_service: ^5.0.5
+  
+  # Разрешения
+  permission_handler: ^11.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
