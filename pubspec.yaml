@@ -14,6 +14,9 @@ dependencies:
   permission_handler: ^13.0.2
   web_socket_channel: ^3.0.0
   path_provider: ^2.1.1
+  
+  # Vosk — распознавание речи (исправленный форк)
+  vosk_flutter_fixed: ^0.1.4
 
 dev_dependencies:
   flutter_test:
