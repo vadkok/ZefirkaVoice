@@ -26,8 +26,8 @@ dependencies:
   # Фоновый сервис
   flutter_background_service: ^5.0.5
   
-  # Разрешения
-  permission_handler: ^11.3.0
+  # Разрешения (понижено для совместимости с vosk_flutter)
+  permission_handler: ^10.4.5
 
 dev_dependencies:
   flutter_test:
