@@ -11,8 +11,13 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.6
   
-  permission_handler: ^10.4.5
+  # Разрешения (микрофон) — версия 13.x совместима с Flutter 3.29+
+  permission_handler: ^13.0.2
+  
+  # WebSocket для отправки команд на OSSM
   web_socket_channel: ^3.0.0
+  
+  # Путь к файлам (commands.json, log.txt)
   path_provider: ^2.1.1
 
 dev_dependencies:
@@ -22,8 +27,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
-# Принудительно используем новые версии Android-плагинов,
-# совместимые с Flutter 3.29+
-dependency_overrides:
-  permission_handler_android: ^13.0.1
