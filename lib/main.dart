@@ -59,12 +59,11 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.black,
       body: GestureDetector(
         onTap: _toggleListening,
-        onDoubleTap: _testFlash, // двойной тап = тест мигания
+        onDoubleTap: _testFlash,
         behavior: HitTestBehavior.opaque,
         child: SizedBox.expand(
           child: Stack(
             children: [
-              // Картинка
               Center(
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 400),
