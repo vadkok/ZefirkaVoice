@@ -23,8 +23,10 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Install dependencies
-        run: flutter pub get
+      - name: Create Android project structure
+        run: |
+          flutter create . --platforms android
+          flutter pub get
 
       - name: Build APK
         run: flutter build apk --release
