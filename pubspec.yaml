@@ -10,14 +10,9 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
-  
-  # Разрешения (микрофон) — версия 13.x совместима с Flutter 3.29+
+
   permission_handler: ^13.0.2
-  
-  # WebSocket для отправки команд на OSSM
   web_socket_channel: ^3.0.0
-  
-  # Путь к файлам (commands.json, log.txt)
   path_provider: ^2.1.1
 
 dev_dependencies:
@@ -27,3 +22,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - girl.png
