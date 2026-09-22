@@ -10,24 +10,6 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
-  
-  # Vosk — распознавание речи
-  vosk_flutter: ^0.3.0
-  
-  # WebSocket — отправка команд на OSSM
-  web_socket_channel: ^3.0.0
-  
-  # Хранение настроек
-  shared_preferences: ^2.2.2
-  
-  # Путь к файлам
-  path_provider: ^2.1.1
-  
-  # Фоновый сервис
-  flutter_background_service: ^5.0.5
-  
-  # Разрешения (понижено для совместимости с vosk_flutter)
-  permission_handler: ^10.4.5
 
 dev_dependencies:
   flutter_test:
