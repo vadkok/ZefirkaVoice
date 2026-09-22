@@ -33,25 +33,29 @@ jobs:
           sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 37/' android/app/build.gradle.kts
           cat android/app/build.gradle.kts | grep compileSdk
 
-      - name: Diagnostic - find vosk build files
+      - name: Fix vosk_flutter_fixed compileSdk
         run: |
-          echo "=== Searching for vosk build files ==="
-          find ~/.pub-cache -type f -path "*vosk_flutter_fixed*/android/*" -name "build.gradle*"
+          VOSK_GRADLE="$HOME/.pub-cache/hosted/pub.dev/vosk_flutter_fixed-0.1.4/android/build.gradle"
+          VOSK_GRADLE_KTS="$HOME/.pub-cache/hosted/pub.dev/vosk_flutter_fixed-0.1.4/android/build.gradle.kts"
           
-          VOSK_GRADLE=$(find ~/.pub-cache -type f -path "*vosk_flutter_fixed*/android/*" -name "build.gradle" | head -1)
-          VOSK_GRADLE_KTS=$(find ~/.pub-cache -type f -path "*vosk_flutter_fixed*/android/*" -name "build.gradle.kts" | head -1)
-          
-          echo "Groovy build.gradle: $VOSK_GRADLE"
-          echo "Kotlin build.gradle.kts: $VOSK_GRADLE_KTS"
-          
-          if [ -n "$VOSK_GRADLE" ]; then
-            echo "=== Content of build.gradle ==="
-            cat "$VOSK_GRADLE"
+          if [ -f "$VOSK_GRADLE" ]; then
+            echo "Found Groovy: $VOSK_GRADLE"
+            echo "--- Before ---"
+            grep -i "compileSdk" "$VOSK_GRADLE" || echo "(no compileSdk line)"
+            sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 36/g' "$VOSK_GRADLE"
+            sed -i 's/compileSdk [0-9]*/compileSdk 36/g' "$VOSK_GRADLE"
+            echo "--- After ---"
+            grep -i "compileSdk" "$VOSK_GRADLE" || echo "(no compileSdk line)"
           fi
           
-          if [ -n "$VOSK_GRADLE_KTS" ]; then
-            echo "=== Content of build.gradle.kts ==="
-            cat "$VOSK_GRADLE_KTS"
+          if [ -f "$VOSK_GRADLE_KTS" ]; then
+            echo "Found Kotlin: $VOSK_GRADLE_KTS"
+            echo "--- Before ---"
+            grep -i "compileSdk" "$VOSK_GRADLE_KTS" || echo "(no compileSdk line)"
+            sed -i 's/compileSdk = [0-9]*/compileSdk = 36/g' "$VOSK_GRADLE_KTS"
+            sed -i 's/compileSdkVersion = [0-9]*/compileSdkVersion = 36/g' "$VOSK_GRADLE_KTS"
+            echo "--- After ---"
+            grep -i "compileSdk" "$VOSK_GRADLE_KTS" || echo "(no compileSdk line)"
           fi
 
       - name: Build APK
