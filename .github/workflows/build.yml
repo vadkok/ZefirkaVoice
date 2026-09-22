@@ -33,6 +33,27 @@ jobs:
           sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 37/' android/app/build.gradle.kts
           cat android/app/build.gradle.kts | grep compileSdk
 
+      - name: Diagnostic - find vosk build files
+        run: |
+          echo "=== Searching for vosk build files ==="
+          find ~/.pub-cache -type f -path "*vosk_flutter_fixed*/android/*" -name "build.gradle*"
+          
+          VOSK_GRADLE=$(find ~/.pub-cache -type f -path "*vosk_flutter_fixed*/android/*" -name "build.gradle" | head -1)
+          VOSK_GRADLE_KTS=$(find ~/.pub-cache -type f -path "*vosk_flutter_fixed*/android/*" -name "build.gradle.kts" | head -1)
+          
+          echo "Groovy build.gradle: $VOSK_GRADLE"
+          echo "Kotlin build.gradle.kts: $VOSK_GRADLE_KTS"
+          
+          if [ -n "$VOSK_GRADLE" ]; then
+            echo "=== Content of build.gradle ==="
+            cat "$VOSK_GRADLE"
+          fi
+          
+          if [ -n "$VOSK_GRADLE_KTS" ]; then
+            echo "=== Content of build.gradle.kts ==="
+            cat "$VOSK_GRADLE_KTS"
+          fi
+
       - name: Build APK
         run: flutter build apk --release
 
