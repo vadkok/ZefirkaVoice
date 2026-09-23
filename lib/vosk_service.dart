@@ -14,9 +14,9 @@ class VoskService {
 
   Future<void> init(String modelPath, {int sampleRate = 16000}) async {
     _vosk = VoskFlutterPlugin.instance();
-    
+
     _model = await _vosk!.createModel(modelPath);
-    
+
     _recognizer = await _vosk!.createRecognizer(
       model: _model!,
       sampleRate: sampleRate,
@@ -29,15 +29,13 @@ class VoskService {
 
     _speechService = await _vosk!.initSpeechService(_recognizer!);
 
-    _speechService!.onPartial().listen((partial) {
-      final text = partial.partial ?? '';
+    _speechService!.onPartial().listen((text) {
       if (text.isNotEmpty && onPartial != null) {
         onPartial!(text);
       }
     });
 
-    _speechService!.onResult().listen((result) {
-      final text = result.text ?? '';
+    _speechService!.onResult().listen((text) {
       if (text.isNotEmpty && onResult != null) {
         onResult!(text);
       }
@@ -59,8 +57,14 @@ class VoskService {
 
   Future<void> dispose() async {
     await stop();
-    await _speechService?.dispose();
-    await _recognizer?.dispose();
-    await _model?.dispose();
+    try {
+      _speechService?.dispose();
+    } catch (_) {}
+    try {
+      _recognizer?.dispose();
+    } catch (_) {}
+    try {
+      _model?.dispose();
+    } catch (_) {}
   }
 }
