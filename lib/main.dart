@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'download_service.dart';
 import 'vosk_service.dart';
+import 'commands_service.dart';
 
 void main() {
   runApp(const ZefirkaVoiceApp());
@@ -141,39 +142,45 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final VoskService _vosk = VoskService();
+  final CommandsService _commands = CommandsService();
 
   bool _isListening = false;
   bool _flash = false;
   bool _voskReady = false;
+  bool _waitingForCommand = false;
   String _lastText = '';
+  String _lastAction = '';
 
   @override
   void initState() {
     super.initState();
-    _initVosk();
+    _init();
   }
 
-  Future<void> _initVosk() async {
-    try {
-      // Разрешение на микрофон
-      final status = await Permission.microphone.request();
-      if (!status.isGranted) {
-        setState(() => _lastText = 'Микрофон не разрешён');
-        return;
-      }
+  Future<void> _init() async {
+    // 1. Загрузка команд
+    await _commands.load();
 
-      // Загрузка модели
+    // 2. Разрешение на микрофон
+    final status = await Permission.microphone.request();
+    if (!status.isGranted) {
+      setState(() => _lastText = 'Микрофон не разрешён');
+      return;
+    }
+
+    // 3. Загрузка модели Vosk
+    try {
       final modelPath = await DownloadService.getModelPath();
       await _vosk.init(modelPath);
 
-      // Подписки на результаты
       _vosk.onPartial = (text) {
         if (mounted) setState(() => _lastText = text);
       };
+
       _vosk.onResult = (text) {
         if (mounted) {
           setState(() => _lastText = text);
-          _doFlash();
+          _handleResult(text);
         }
       };
 
@@ -181,6 +188,41 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       setState(() => _lastText = 'Ошибка Vosk: $e');
     }
+  }
+
+  void _handleResult(String text) {
+    final lower = text.toLowerCase();
+
+    // Если есть wake word
+    if (_commands.hasWakeWord(lower)) {
+      _doFlash();
+      final cleaned = _commands.stripWakeWord(text);
+
+      final cmd = _commands.findCommand(cleaned);
+      if (cmd != null) {
+        _executeCommand(cmd);
+        setState(() => _waitingForCommand = false);
+      } else {
+        setState(() => _waitingForCommand = true);
+      }
+      return;
+    }
+
+    // Если ждём команду
+    if (_waitingForCommand) {
+      final cmd = _commands.findCommand(text);
+      if (cmd != null) {
+        _executeCommand(cmd);
+        setState(() => _waitingForCommand = false);
+      }
+    }
+  }
+
+  void _executeCommand(VoiceCommand cmd) {
+    _doFlash();
+    setState(() {
+      _lastAction = 'Команда: ${cmd.phrase}';
+    });
   }
 
   void _doFlash() {
@@ -198,7 +240,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (_isListening) {
       await _vosk.stop();
-      setState(() => _isListening = false);
+      setState(() {
+        _isListening = false;
+        _waitingForCommand = false;
+      });
     } else {
       await _vosk.start();
       setState(() => _isListening = true);
@@ -221,7 +266,6 @@ class _HomeScreenState extends State<HomeScreen> {
         child: SizedBox.expand(
           child: Stack(
             children: [
-              // Картинка
               Center(
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 400),
@@ -250,10 +294,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-              // Распознанный текст (внизу) — для отладки
               if (_lastText.isNotEmpty)
                 Positioned(
-                  bottom: 40,
+                  bottom: 80,
                   left: 20,
                   right: 20,
                   child: Container(
@@ -281,21 +324,31 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
 
-              // Индикатор Vosk (сверху)
-              Positioned(
-                top: 40,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Text(
-                    _voskReady ? '' : 'Загрузка Vosk...',
-                    style: TextStyle(
-                      color: const Color(0xFF7CBFAD).withOpacity(0.6),
-                      fontSize: 12,
+              if (_lastAction.isNotEmpty)
+                Positioned(
+                  bottom: 30,
+                  left: 20,
+                  right: 20,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF7CBFAD).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      _lastAction,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Color(0xFF7CBFAD),
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
