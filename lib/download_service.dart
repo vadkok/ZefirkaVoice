@@ -6,7 +6,7 @@ import 'package:archive/archive.dart';
 class DownloadService {
   static const String MODEL_URL =
       'https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip';
-  
+
   static const String MODEL_FOLDER = 'vosk-model-small-ru-0.22';
 
   // Папка Documents/ZefirkaVoice/
@@ -38,42 +38,46 @@ class DownloadService {
   }) async {
     final folder = await getAppFolder();
     final zipPath = '${folder.path}/model.zip';
-    
+
     onStatus('Подключение...');
-    
+
     // 1. Скачивание
     final request = http.Request('GET', Uri.parse(MODEL_URL));
     final response = await request.send();
-    
+
     final totalBytes = response.contentLength ?? 0;
     int downloadedBytes = 0;
-    
+
     final zipFile = File(zipPath);
+    if (await zipFile.exists()) {
+      await zipFile.delete();
+    }
     final sink = zipFile.openWrite();
-    
+
     await for (var chunk in response.stream) {
       sink.add(chunk);
       downloadedBytes += chunk.length;
-      
+
       if (totalBytes > 0) {
         onProgress(downloadedBytes / totalBytes);
-        onStatus('Скачано: ${_formatBytes(downloadedBytes)} / ${_formatBytes(totalBytes)}');
+        onStatus(
+            'Скачано: ${_formatBytes(downloadedBytes)} / ${_formatBytes(totalBytes)}');
       }
     }
-    
+
     await sink.close();
-    
+
     // 2. Распаковка
     onStatus('Распаковка...');
     onProgress(1.0);
-    
+
     final bytes = await zipFile.readAsBytes();
     final archive = ZipDecoder().decodeBytes(bytes);
-    
-    for (final file in archive) {
+
+    for (final file in archive.files) {
       final filename = file.name;
       final outPath = '${folder.path}/$filename';
-      
+
       if (file.isFile) {
         final data = file.content as List<int>;
         final outFile = File(outPath);
@@ -83,10 +87,10 @@ class DownloadService {
         await Directory(outPath).create(recursive: true);
       }
     }
-    
+
     // 3. Удаляем zip
     await zipFile.delete();
-    
+
     onStatus('Готово!');
   }
 
