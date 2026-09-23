@@ -3,6 +3,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'download_service.dart';
 import 'vosk_service.dart';
 import 'commands_service.dart';
+import 'commands_editor_screen.dart';
 
 void main() {
   runApp(const ZefirkaVoiceApp());
@@ -278,6 +279,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
   }
 
+  Future<void> _openEditor() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CommandsEditorScreen(
+          commands: _commands,
+          onSaved: () {
+            if (mounted) {
+              setState(() {
+                _cmdSource = _commands.source;
+                _lastAction = 'Команды обновлены';
+              });
+            }
+          },
+        ),
+      ),
+    );
+  }
+
   Future<void> _toggleListening() async {
     if (!_voskReady) {
       setState(() => _lastText = 'Vosk не готов');
@@ -343,17 +362,46 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               ),
 
-              // Источник команд (сверху)
+              // Источник команд (сверху слева)
               Positioned(
-                top: 40,
+                top: 50,
                 left: 20,
-                right: 20,
+                right: 120,
                 child: Text(
                   _cmdSource.isNotEmpty ? 'Команды: $_cmdSource' : '',
-                  textAlign: TextAlign.center,
                   style: TextStyle(
                     color: const Color(0xFF7CBFAD).withOpacity(0.5),
                     fontSize: 11,
+                  ),
+                ),
+              ),
+
+              // Кнопка "команды" (сверху справа)
+              Positioned(
+                top: 40,
+                right: 20,
+                child: GestureDetector(
+                  onTap: _openEditor,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF7CBFAD).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: const Color(0xFF7CBFAD).withOpacity(0.5),
+                      ),
+                    ),
+                    child: const Text(
+                      'команды',
+                      style: TextStyle(
+                        color: Color(0xFF7CBFAD),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
               ),
