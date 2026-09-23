@@ -190,6 +190,7 @@ class _HomeScreenState extends State<HomeScreen>
       if (mounted) {
         setState(() {
           _isListening = true;
+          _wasListening = true;
           _lastText = 'Слушаю...';
         });
       }
@@ -197,6 +198,7 @@ class _HomeScreenState extends State<HomeScreen>
       if (mounted) {
         setState(() {
           _isListening = false;
+          _wasListening = false;
           _lastText = 'Ошибка: $e';
         });
       }
@@ -280,18 +282,18 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     if (_isListening) {
+      // СТОП
       await _vosk.stop();
       setState(() {
         _isListening = false;
         _wasListening = false;
         _waitingForCommand = false;
+        _lastText = '';
       });
     } else {
-      await _vosk.start();
-      setState(() {
-        _isListening = true;
-        _wasListening = true;
-      });
+      // СТАРТ — полный пересбор Vosk
+      setState(() => _lastText = 'Запуск...');
+      await _restartVosk();
     }
   }
 
