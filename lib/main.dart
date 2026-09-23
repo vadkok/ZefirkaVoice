@@ -4,6 +4,7 @@ import 'download_service.dart';
 import 'vosk_service.dart';
 import 'commands_service.dart';
 import 'commands_editor_screen.dart';
+import 'websocket_service.dart';
 
 void main() {
   runApp(const ZefirkaVoiceApp());
@@ -144,6 +145,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final VoskService _vosk = VoskService();
   final CommandsService _commands = CommandsService();
+  final WebSocketService _ws = WebSocketService();
 
   bool _isListening = false;
   bool _wasListening = false;
@@ -212,6 +214,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       setState(() => _cmdSource = _commands.source);
     }
 
+    // WebSocket — подключение
+    if (_commands.url.isNotEmpty) {
+      _ws.init(_commands.url);
+      _ws.onMessage = (text) {
+        // Ответы OSSM пока игнорируем
+      };
+      await _ws.connect();
+    }
+
     final status = await Permission.microphone.request();
     if (!status.isGranted) {
       setState(() => _lastText = 'Микрофон не разрешён');
@@ -267,9 +278,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _executeCommand(VoiceCommand cmd) {
     _doFlash();
+
+    final sent = _ws.send(cmd.json);
+
     setState(() {
-      _lastAction = 'Команда: ${_commands.primaryPhrase(cmd)}';
+      _lastAction = sent
+          ? 'Отправлено: ${_commands.primaryPhrase(cmd)}'
+          : 'Ошибка: нет связи';
     });
+
+    if (!sent) {
+      _reconnectWs();
+    }
+  }
+
+  Future<void> _reconnectWs() async {
+    await _ws.disconnect();
+    if (_commands.url.isNotEmpty) {
+      _ws.init(_commands.url);
+      await _ws.connect();
+    }
   }
 
   void _doFlash() {
@@ -291,6 +319,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 _lastAction = 'Команды обновлены';
               });
             }
+            // Переподключаемся к новому URL (если изменился)
+            _reconnectWs();
           },
         ),
       ),
@@ -321,6 +351,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _vosk.dispose();
+    _ws.disconnect();
     super.dispose();
   }
 
@@ -362,7 +393,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               ),
 
-              // Источник команд (сверху слева)
+              // Источник команд
               Positioned(
                 top: 50,
                 left: 20,
@@ -376,7 +407,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               ),
 
-              // Кнопка "команды" (сверху справа)
+              // Кнопка "команды"
               Positioned(
                 top: 40,
                 right: 20,
@@ -388,10 +419,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF7CBFAD).withOpacity(0.2),
+                      color: Colors.transparent,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: const Color(0xFF7CBFAD).withOpacity(0.5),
+                        color: const Color(0xFF7CBFAD).withOpacity(0.6),
                       ),
                     ),
                     child: const Text(
