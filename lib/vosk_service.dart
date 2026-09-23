@@ -55,16 +55,26 @@ class VoskService {
 
   bool get isRunning => _isRunning;
 
+  Future<void> reinit(String modelPath, {int sampleRate = 16000}) async {
+    await dispose();
+    await Future.delayed(const Duration(milliseconds: 500));
+    await init(modelPath, sampleRate: sampleRate);
+  }
+
   Future<void> dispose() async {
     await stop();
     try {
       _speechService?.dispose();
     } catch (_) {}
+    _speechService = null;
     try {
       _recognizer?.dispose();
     } catch (_) {}
+    _recognizer = null;
     try {
       _model?.dispose();
     } catch (_) {}
+    _model = null;
+    _vosk = null;
   }
 }
