@@ -140,11 +140,13 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with WidgetsBindingObserver {
   final VoskService _vosk = VoskService();
   final CommandsService _commands = CommandsService();
 
   bool _isListening = false;
+  bool _wasListening = false;
   bool _flash = false;
   bool _voskReady = false;
   bool _waitingForCommand = false;
@@ -154,21 +156,54 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _init();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _wasListening = _isListening;
+      if (_isListening) {
+        _vosk.stop();
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      if (_wasListening) {
+        _restartVosk();
+      }
+    }
+  }
+
+  Future<void> _restartVosk() async {
+    try {
+      await _vosk.stop();
+      await Future.delayed(const Duration(milliseconds: 300));
+      await _vosk.start();
+      if (mounted) {
+        setState(() {
+          _isListening = true;
+          _lastText = 'Слушаю...';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isListening = false;
+          _lastText = 'Ошибка перезапуска: $e';
+        });
+      }
+    }
+  }
+
   Future<void> _init() async {
-    // 1. Загрузка команд
     await _commands.load();
 
-    // 2. Разрешение на микрофон
     final status = await Permission.microphone.request();
     if (!status.isGranted) {
       setState(() => _lastText = 'Микрофон не разрешён');
       return;
     }
 
-    // 3. Загрузка модели Vosk
     try {
       final modelPath = await DownloadService.getModelPath();
       await _vosk.init(modelPath);
@@ -193,7 +228,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void _handleResult(String text) {
     final lower = text.toLowerCase();
 
-    // Если есть wake word
     if (_commands.hasWakeWord(lower)) {
       _doFlash();
       final cleaned = _commands.stripWakeWord(text);
@@ -208,7 +242,6 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
-    // Если ждём команду
     if (_waitingForCommand) {
       final cmd = _commands.findCommand(text);
       if (cmd != null) {
@@ -242,16 +275,21 @@ class _HomeScreenState extends State<HomeScreen> {
       await _vosk.stop();
       setState(() {
         _isListening = false;
+        _wasListening = false;
         _waitingForCommand = false;
       });
     } else {
       await _vosk.start();
-      setState(() => _isListening = true);
+      setState(() {
+        _isListening = true;
+        _wasListening = true;
+      });
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _vosk.dispose();
     super.dispose();
   }
