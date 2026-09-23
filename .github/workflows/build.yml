@@ -28,19 +28,36 @@ jobs:
           flutter create . --platforms android
           flutter pub get
 
-      - name: Add INTERNET permission to AndroidManifest
+      - name: Add INTERNET permission
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
-          echo "=== Before ==="
-          cat "$MANIFEST"
           sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET"/>\n    <application|' "$MANIFEST"
-          echo "=== After ==="
+
+      - name: Add RECORD_AUDIO permission
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          sed -i 's|<application|<uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <application|' "$MANIFEST"
+          echo "=== Manifest ==="
           cat "$MANIFEST"
+
+      - name: Install vosk native binaries
+        run: |
+          dart run vosk_flutter_fixed install
+
+      - name: Add Proguard rules
+        run: |
+          mkdir -p android/app
+          cat > android/app/proguard-rules.pro << 'EOF'
+          -keep class com.sun.jna.* { *; }
+          -keepclassmembers class * extends com.sun.jna.* { public *; }
+          -keep class org.vosk.** { *; }
+          -keep class com.alphacephei.** { *; }
+          EOF
+          cat android/app/proguard-rules.pro
 
       - name: Fix compileSdk to 37
         run: |
           sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 37/' android/app/build.gradle.kts
-          cat android/app/build.gradle.kts | grep compileSdk
 
       - name: Fix vosk_flutter_fixed compileSdk
         run: |
