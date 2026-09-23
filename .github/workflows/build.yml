@@ -40,10 +40,6 @@ jobs:
           echo "=== Manifest ==="
           cat "$MANIFEST"
 
-      - name: Install vosk native binaries
-        run: |
-          dart run vosk_flutter_fixed install
-
       - name: Add Proguard rules
         run: |
           mkdir -p android/app
