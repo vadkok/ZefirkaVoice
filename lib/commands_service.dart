@@ -41,7 +41,6 @@ class CommandsService {
   List<VoiceCommand> get commands => _commands;
   String get source => _source;
 
-  // Путь к файлу в папке приложения
   static Future<File> getCommandsFile() async {
     final dir = Directory('/data/data/com.example.zefirka_voice/files');
     if (!await dir.exists()) {
@@ -54,7 +53,6 @@ class CommandsService {
     try {
       final file = await getCommandsFile();
 
-      // Если файла нет — копируем из assets
       if (!await file.exists()) {
         final raw = await rootBundle.loadString('assets/commands.json');
         await file.writeAsString(raw);
@@ -63,12 +61,10 @@ class CommandsService {
         return;
       }
 
-      // Читаем из файла
       final raw = await file.readAsString();
       _parse(raw);
       _source = 'файл приложения';
     } catch (e) {
-      // Fallback — читаем из assets
       try {
         final raw = await rootBundle.loadString('assets/commands.json');
         _parse(raw);
@@ -80,20 +76,14 @@ class CommandsService {
     }
   }
 
-  // Сохранить команды из редактора
   Future<bool> saveFromText(String text) async {
     try {
-      // Проверяем JSON
       final data = json.decode(text);
-
-      // Базовая проверка
       if (data['commands'] == null) return false;
 
-      // Записываем в файл
       final file = await getCommandsFile();
       await file.writeAsString(text);
 
-      // Перезагружаем
       _parse(text);
       _source = 'файл приложения (сохранён)';
       return true;
@@ -102,7 +92,6 @@ class CommandsService {
     }
   }
 
-  // Получить текущий JSON для редактора
   Future<String> getCurrentJson() async {
     try {
       final file = await getCommandsFile();
@@ -118,7 +107,6 @@ class CommandsService {
     }
   }
 
-  // Сброс к дефолту из assets
   Future<bool> resetToDefault() async {
     try {
       final raw = await rootBundle.loadString('assets/commands.json');
