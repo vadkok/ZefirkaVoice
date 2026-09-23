@@ -1,0 +1,14 @@
+{
+  "url": "ws://192.168.1.105:81",
+  "wake_word": "зефирка",
+  "commands": [
+    { "phrase": "старт",     "json": "[{\"action\":\"startStreaming\"}]" },
+    { "phrase": "стоп",      "json": "[{\"action\":\"stop\"}]" },
+    { "phrase": "быстрее",   "json": "[{\"action\":\"setSpeed\",\"speed\":70}]" },
+    { "phrase": "медленнее", "json": "[{\"action\":\"setSpeed\",\"speed\":30}]" },
+    { "phrase": "глубже",    "json": "[{\"action\":\"setDepth\",\"depth\":70}]" },
+    { "phrase": "выше",      "json": "[{\"action\":\"setDepth\",\"depth\":30}]" },
+    { "phrase": "амплитуда больше", "json": "[{\"action\":\"setStroke\",\"stroke\":70}]" },
+    { "phrase": "амплитуда меньше", "json": "[{\"action\":\"setStroke\",\"stroke\":30}]" }
+  ]
+}
