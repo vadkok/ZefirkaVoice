@@ -12,10 +12,12 @@ class CommandsService {
   String _url = '';
   List<String> _wakeWords = ['малышка', 'малыш'];
   List<VoiceCommand> _commands = [];
+  String _source = 'не загружено';
 
   String get url => _url;
   List<String> get wakeWords => _wakeWords;
   List<VoiceCommand> get commands => _commands;
+  String get source => _source;
 
   Future<void> load() async {
     bool loaded = await _tryLoadFromDownload();
@@ -31,8 +33,10 @@ class CommandsService {
       if (!await file.exists()) return false;
       final raw = await file.readAsString();
       _parse(raw);
+      _source = 'Download';
       return true;
     } catch (e) {
+      _source = 'Download: ошибка';
       return false;
     }
   }
@@ -41,8 +45,10 @@ class CommandsService {
     try {
       final raw = await rootBundle.loadString('assets/commands.json');
       _parse(raw);
+      _source = 'assets';
     } catch (e) {
       _commands = [];
+      _source = 'assets: ошибка';
     }
   }
 
@@ -66,7 +72,6 @@ class CommandsService {
     _commands = [];
     final list = data['commands'] as List? ?? [];
     for (final cmd in list) {
-      // Поддержка и старых "phrase", и новых "phrases"
       final phrases = <String>[];
       if (cmd['phrases'] != null) {
         for (final p in (cmd['phrases'] as List)) {
@@ -104,7 +109,6 @@ class CommandsService {
     return text.trim();
   }
 
-  // Ищем команду по любому из phrases
   VoiceCommand? findCommand(String text) {
     final lower = text.toLowerCase().trim();
     for (final cmd in _commands) {
@@ -117,7 +121,6 @@ class CommandsService {
     return null;
   }
 
-  // Для UI — первая фраза (для показа)
   String primaryPhrase(VoiceCommand cmd) {
     return cmd.phrases.isNotEmpty ? cmd.phrases.first : '';
   }
