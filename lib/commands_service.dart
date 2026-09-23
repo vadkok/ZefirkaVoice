@@ -53,7 +53,7 @@ class CommandsService {
     final data = json.decode(raw);
 
     _url = (data['url'] ?? '').toString();
-    _wakeWord = (data['wake_word'] ?? 'зефирка')
+    _wakeWord = (data['wake_word'] ?? 'малыш,малышка')
         .toString()
         .toLowerCase()
         .trim();
