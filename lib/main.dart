@@ -164,11 +164,8 @@ class _HomeScreenState extends State<HomeScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       _wasListening = _isListening;
-      if (_isListening) {
-        _vosk.stop();
-      }
     } else if (state == AppLifecycleState.resumed) {
-      if (_wasListening) {
+      if (_wasListening && !_isListening) {
         _restartVosk();
       }
     }
@@ -176,8 +173,19 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _restartVosk() async {
     try {
-      await _vosk.stop();
-      await Future.delayed(const Duration(milliseconds: 300));
+      final modelPath = await DownloadService.getModelPath();
+      await _vosk.reinit(modelPath);
+
+      _vosk.onPartial = (text) {
+        if (mounted) setState(() => _lastText = text);
+      };
+      _vosk.onResult = (text) {
+        if (mounted) {
+          setState(() => _lastText = text);
+          _handleResult(text);
+        }
+      };
+
       await _vosk.start();
       if (mounted) {
         setState(() {
@@ -189,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen>
       if (mounted) {
         setState(() {
           _isListening = false;
-          _lastText = 'Ошибка перезапуска: $e';
+          _lastText = 'Ошибка: $e';
         });
       }
     }
