@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'download_service.dart';
+import 'vosk_service.dart';
 
 void main() {
   runApp(const ZefirkaVoiceApp());
@@ -23,9 +25,6 @@ class ZefirkaVoiceApp extends StatelessWidget {
 }
 
 // ==================== ЭКРАН ЗАГРУЗКИ ====================
-// Проверяет, есть ли модель.
-// Если нет — скачивает.
-// Если есть — переходит к основному экрану.
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -46,54 +45,33 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkModel() async {
-    setState(() {
-      _status = 'Проверка модели...';
-    });
-
     final ready = await DownloadService.isModelReady();
 
     if (ready) {
-      setState(() {
-        _status = 'Модель готова';
-      });
-      await Future.delayed(const Duration(milliseconds: 500));
       _goToMain();
-    } else {
+      return;
+    }
+
+    setState(() {
+      _downloading = true;
+      _status = 'Скачивание модели (~50 МБ)';
+    });
+
+    try {
+      await DownloadService.downloadModel(
+        onProgress: (p) {
+          if (mounted) setState(() => _progress = p);
+        },
+        onStatus: (s) {
+          if (mounted) setState(() => _status = s);
+        },
+      );
+      _goToMain();
+    } catch (e) {
       setState(() {
-        _downloading = true;
-        _status = 'Скачивание модели (~50 МБ)';
-        _progress = 0.0;
+        _status = 'Ошибка: $e';
+        _downloading = false;
       });
-
-      try {
-        await DownloadService.downloadModel(
-          onProgress: (p) {
-            if (mounted) {
-              setState(() {
-                _progress = p;
-              });
-            }
-          },
-          onStatus: (s) {
-            if (mounted) {
-              setState(() {
-                _status = s;
-              });
-            }
-          },
-        );
-
-        setState(() {
-          _status = 'Готово!';
-        });
-        await Future.delayed(const Duration(milliseconds: 500));
-        _goToMain();
-      } catch (e) {
-        setState(() {
-          _status = 'Ошибка: $e';
-          _downloading = false;
-        });
-      }
     }
   }
 
@@ -114,7 +92,6 @@ class _SplashScreenState extends State<SplashScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Картинка (мятная)
               Opacity(
                 opacity: 0.5,
                 child: Image.asset(
@@ -126,24 +103,17 @@ class _SplashScreenState extends State<SplashScreen> {
                 ),
               ),
               const SizedBox(height: 40),
-              
-              // Прогресс
-              if (_downloading)
-                Column(
-                  children: [
-                    LinearProgressIndicator(
-                      value: _progress,
-                      backgroundColor: Colors.grey.shade800,
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        Color(0xFF7CBFAD),
-                      ),
-                      minHeight: 6,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
+              if (_downloading) ...[
+                LinearProgressIndicator(
+                  value: _progress,
+                  backgroundColor: Colors.grey.shade800,
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    Color(0xFF7CBFAD),
+                  ),
+                  minHeight: 6,
                 ),
-              
-              // Статус
+                const SizedBox(height: 12),
+              ],
               Text(
                 _status,
                 textAlign: TextAlign.center,
@@ -161,8 +131,6 @@ class _SplashScreenState extends State<SplashScreen> {
 }
 
 // ==================== ОСНОВНОЙ ЭКРАН ====================
-// Картинка на весь экран.
-// Тап — вкл/выкл прослушивание.
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -172,26 +140,75 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final VoskService _vosk = VoskService();
+
   bool _isListening = false;
   bool _flash = false;
+  bool _voskReady = false;
+  String _lastText = '';
 
-  void _toggleListening() {
-    setState(() {
-      _isListening = !_isListening;
+  @override
+  void initState() {
+    super.initState();
+    _initVosk();
+  }
+
+  Future<void> _initVosk() async {
+    try {
+      // Разрешение на микрофон
+      final status = await Permission.microphone.request();
+      if (!status.isGranted) {
+        setState(() => _lastText = 'Микрофон не разрешён');
+        return;
+      }
+
+      // Загрузка модели
+      final modelPath = await DownloadService.getModelPath();
+      await _vosk.init(modelPath);
+
+      // Подписки на результаты
+      _vosk.onPartial = (text) {
+        if (mounted) setState(() => _lastText = text);
+      };
+      _vosk.onResult = (text) {
+        if (mounted) {
+          setState(() => _lastText = text);
+          _doFlash();
+        }
+      };
+
+      setState(() => _voskReady = true);
+    } catch (e) {
+      setState(() => _lastText = 'Ошибка Vosk: $e');
+    }
+  }
+
+  void _doFlash() {
+    setState(() => _flash = true);
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (mounted) setState(() => _flash = false);
     });
   }
 
-  void _testFlash() {
-    setState(() {
-      _flash = true;
-    });
-    Future.delayed(const Duration(milliseconds: 150), () {
-      if (mounted) {
-        setState(() {
-          _flash = false;
-        });
-      }
-    });
+  Future<void> _toggleListening() async {
+    if (!_voskReady) {
+      setState(() => _lastText = 'Vosk не готов');
+      return;
+    }
+
+    if (_isListening) {
+      await _vosk.stop();
+      setState(() => _isListening = false);
+    } else {
+      await _vosk.start();
+      setState(() => _isListening = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _vosk.dispose();
+    super.dispose();
   }
 
   @override
@@ -200,11 +217,11 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.black,
       body: GestureDetector(
         onTap: _toggleListening,
-        onDoubleTap: _testFlash,
         behavior: HitTestBehavior.opaque,
         child: SizedBox.expand(
           child: Stack(
             children: [
+              // Картинка
               Center(
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 400),
@@ -228,6 +245,53 @@ class _HomeScreenState extends State<HomeScreen> {
                       filterQuality: FilterQuality.medium,
                       color: const Color(0xFF7CBFAD).withOpacity(0.85),
                       colorBlendMode: BlendMode.modulate,
+                    ),
+                  ),
+                ),
+              ),
+
+              // Распознанный текст (внизу) — для отладки
+              if (_lastText.isNotEmpty)
+                Positioned(
+                  bottom: 40,
+                  left: 20,
+                  right: 20,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: const Color(0xFF7CBFAD).withOpacity(0.4),
+                      ),
+                    ),
+                    child: Text(
+                      _lastText,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF7CBFAD),
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Индикатор Vosk (сверху)
+              Positioned(
+                top: 40,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Text(
+                    _voskReady ? '' : 'Загрузка Vosk...',
+                    style: TextStyle(
+                      color: const Color(0xFF7CBFAD).withOpacity(0.6),
+                      fontSize: 12,
                     ),
                   ),
                 ),
