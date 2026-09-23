@@ -1,6 +1,6 @@
 {
   "url": "ws://192.168.1.105:81",
-  "wake_word": "зефирка",
+  "wake_words": ["малышка", "малыш", "малышко"],
   "commands": [
     { "phrase": "старт",     "json": "[{\"action\":\"startStreaming\"}]" },
     { "phrase": "стоп",      "json": "[{\"action\":\"stop\"}]" },
