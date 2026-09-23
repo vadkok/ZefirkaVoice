@@ -6,6 +6,28 @@ class VoiceCommand {
   final List<String> phrases;
   final String json;
   VoiceCommand({required this.phrases, required this.json});
+
+  Map<String, dynamic> toJson() => {
+        'phrases': phrases,
+        'json': json,
+      };
+
+  factory VoiceCommand.fromJson(Map<String, dynamic> data) {
+    final phrases = <String>[];
+    if (data['phrases'] != null) {
+      for (final p in (data['phrases'] as List)) {
+        final s = p.toString().toLowerCase().trim();
+        if (s.isNotEmpty) phrases.add(s);
+      }
+    } else if (data['phrase'] != null) {
+      final s = data['phrase'].toString().toLowerCase().trim();
+      if (s.isNotEmpty) phrases.add(s);
+    }
+    return VoiceCommand(
+      phrases: phrases,
+      json: (data['json'] ?? '').toString(),
+    );
+  }
 }
 
 class CommandsService {
@@ -19,36 +41,94 @@ class CommandsService {
   List<VoiceCommand> get commands => _commands;
   String get source => _source;
 
+  // Путь к файлу в папке приложения
+  static Future<File> getCommandsFile() async {
+    final dir = Directory('/data/data/com.example.zefirka_voice/files');
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    return File('${dir.path}/commands.json');
+  }
+
   Future<void> load() async {
-    bool loaded = await _tryLoadFromDownload();
-    if (!loaded) {
-      await _tryLoadFromAssets();
+    try {
+      final file = await getCommandsFile();
+
+      // Если файла нет — копируем из assets
+      if (!await file.exists()) {
+        final raw = await rootBundle.loadString('assets/commands.json');
+        await file.writeAsString(raw);
+        _parse(raw);
+        _source = 'создан из assets';
+        return;
+      }
+
+      // Читаем из файла
+      final raw = await file.readAsString();
+      _parse(raw);
+      _source = 'файл приложения';
+    } catch (e) {
+      // Fallback — читаем из assets
+      try {
+        final raw = await rootBundle.loadString('assets/commands.json');
+        _parse(raw);
+        _source = 'assets (ошибка файла)';
+      } catch (e2) {
+        _commands = [];
+        _source = 'ошибка';
+      }
     }
   }
 
-  Future<bool> _tryLoadFromDownload() async {
+  // Сохранить команды из редактора
+  Future<bool> saveFromText(String text) async {
     try {
-      final file =
-          File('/storage/emulated/0/Download/ZefirkaVoice/commands.json');
-      if (!await file.exists()) return false;
-      final raw = await file.readAsString();
-      _parse(raw);
-      _source = 'Download';
+      // Проверяем JSON
+      final data = json.decode(text);
+
+      // Базовая проверка
+      if (data['commands'] == null) return false;
+
+      // Записываем в файл
+      final file = await getCommandsFile();
+      await file.writeAsString(text);
+
+      // Перезагружаем
+      _parse(text);
+      _source = 'файл приложения (сохранён)';
       return true;
     } catch (e) {
-      _source = 'Download: ошибка';
       return false;
     }
   }
 
-  Future<void> _tryLoadFromAssets() async {
+  // Получить текущий JSON для редактора
+  Future<String> getCurrentJson() async {
+    try {
+      final file = await getCommandsFile();
+      if (await file.exists()) {
+        return await file.readAsString();
+      }
+    } catch (_) {}
+
+    try {
+      return await rootBundle.loadString('assets/commands.json');
+    } catch (_) {
+      return '{}';
+    }
+  }
+
+  // Сброс к дефолту из assets
+  Future<bool> resetToDefault() async {
     try {
       final raw = await rootBundle.loadString('assets/commands.json');
+      final file = await getCommandsFile();
+      await file.writeAsString(raw);
       _parse(raw);
-      _source = 'assets';
+      _source = 'сброшено из assets';
+      return true;
     } catch (e) {
-      _commands = [];
-      _source = 'assets: ошибка';
+      return false;
     }
   }
 
@@ -72,20 +152,9 @@ class CommandsService {
     _commands = [];
     final list = data['commands'] as List? ?? [];
     for (final cmd in list) {
-      final phrases = <String>[];
-      if (cmd['phrases'] != null) {
-        for (final p in (cmd['phrases'] as List)) {
-          final s = p.toString().toLowerCase().trim();
-          if (s.isNotEmpty) phrases.add(s);
-        }
-      } else if (cmd['phrase'] != null) {
-        final s = cmd['phrase'].toString().toLowerCase().trim();
-        if (s.isNotEmpty) phrases.add(s);
-      }
-
-      final json = (cmd['json'] ?? '').toString();
-      if (phrases.isNotEmpty) {
-        _commands.add(VoiceCommand(phrases: phrases, json: json));
+      final voiceCmd = VoiceCommand.fromJson(cmd);
+      if (voiceCmd.phrases.isNotEmpty) {
+        _commands.add(voiceCmd);
       }
     }
   }
