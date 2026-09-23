@@ -43,13 +43,10 @@ jobs:
         run: |
           mkdir -p android/app
           cat > android/app/proguard-rules.pro << 'EOF'
-          # JNA — для работы Vosk с нативными библиотеками
           -keep class com.sun.jna.* { *; }
           -keepclassmembers class * extends com.sun.jna.* { public *; }
           -dontwarn java.awt.*
           -dontwarn com.sun.jna.*
-          
-          # Vosk
           -keep class org.vosk.** { *; }
           -keep class com.alphacephei.** { *; }
           EOF
@@ -58,6 +55,7 @@ jobs:
       - name: Fix compileSdk to 37
         run: |
           sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 37/' android/app/build.gradle.kts
+          cat android/app/build.gradle.kts | grep compileSdk
 
       - name: Fix vosk_flutter_fixed compileSdk
         run: |
