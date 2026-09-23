@@ -2,13 +2,37 @@
   "url": "ws://192.168.1.105:81",
   "wake_words": ["малышка", "малыш", "малышко"],
   "commands": [
-    { "phrase": "старт",     "json": "[{\"action\":\"startStreaming\"}]" },
-    { "phrase": "стоп",      "json": "[{\"action\":\"stop\"}]" },
-    { "phrase": "быстрее",   "json": "[{\"action\":\"setSpeed\",\"speed\":70}]" },
-    { "phrase": "медленнее", "json": "[{\"action\":\"setSpeed\",\"speed\":30}]" },
-    { "phrase": "глубже",    "json": "[{\"action\":\"setDepth\",\"depth\":70}]" },
-    { "phrase": "выше",      "json": "[{\"action\":\"setDepth\",\"depth\":30}]" },
-    { "phrase": "амплитуда больше", "json": "[{\"action\":\"setStroke\",\"stroke\":70}]" },
-    { "phrase": "амплитуда меньше", "json": "[{\"action\":\"setStroke\",\"stroke\":30}]" }
+    {
+      "phrases": ["старт", "пуск", "начни", "поехали"],
+      "json": "[{\"action\":\"startStreaming\"}]"
+    },
+    {
+      "phrases": ["стоп", "остановись", "останови", "хватит", "стой"],
+      "json": "[{\"action\":\"stop\"}]"
+    },
+    {
+      "phrases": ["быстрее", "быстро", "ускорь", "прибавь"],
+      "json": "[{\"action\":\"setSpeed\",\"speed\":70}]"
+    },
+    {
+      "phrases": ["медленнее", "медленно", "замедлись", "убавь"],
+      "json": "[{\"action\":\"setSpeed\",\"speed\":30}]"
+    },
+    {
+      "phrases": ["глубже", "губы", "глубо", "глубчи", "глупы"],
+      "json": "[{\"action\":\"setDepth\",\"depth\":70}]"
+    },
+    {
+      "phrases": ["выше", "вышь", "выши", "вверх"],
+      "json": "[{\"action\":\"setDepth\",\"depth\":30}]"
+    },
+    {
+      "phrases": ["амплитуда больше", "больше амплитуда", "амплитуда"],
+      "json": "[{\"action\":\"setStroke\",\"stroke\":70}]"
+    },
+    {
+      "phrases": ["амплитуда меньше", "меньше амплитуда"],
+      "json": "[{\"action\":\"setStroke\",\"stroke\":30}]"
+    }
   ]
 }
