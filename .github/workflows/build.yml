@@ -28,6 +28,15 @@ jobs:
           flutter create . --platforms android
           flutter pub get
 
+      - name: Add INTERNET permission to AndroidManifest
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          echo "=== Before ==="
+          cat "$MANIFEST"
+          sed -i 's|<application|<uses-permission android:name="android.permission.INTERNET"/>\n    <application|' "$MANIFEST"
+          echo "=== After ==="
+          cat "$MANIFEST"
+
       - name: Fix compileSdk to 37
         run: |
           sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 37/' android/app/build.gradle.kts
@@ -37,25 +46,14 @@ jobs:
         run: |
           VOSK_GRADLE="$HOME/.pub-cache/hosted/pub.dev/vosk_flutter_fixed-0.1.4/android/build.gradle"
           VOSK_GRADLE_KTS="$HOME/.pub-cache/hosted/pub.dev/vosk_flutter_fixed-0.1.4/android/build.gradle.kts"
-          
+
           if [ -f "$VOSK_GRADLE" ]; then
-            echo "Found Groovy: $VOSK_GRADLE"
-            echo "--- Before ---"
-            grep -i "compileSdk" "$VOSK_GRADLE" || echo "(no compileSdk line)"
             sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 36/g' "$VOSK_GRADLE"
             sed -i 's/compileSdk [0-9]*/compileSdk 36/g' "$VOSK_GRADLE"
-            echo "--- After ---"
-            grep -i "compileSdk" "$VOSK_GRADLE" || echo "(no compileSdk line)"
           fi
-          
+
           if [ -f "$VOSK_GRADLE_KTS" ]; then
-            echo "Found Kotlin: $VOSK_GRADLE_KTS"
-            echo "--- Before ---"
-            grep -i "compileSdk" "$VOSK_GRADLE_KTS" || echo "(no compileSdk line)"
             sed -i 's/compileSdk = [0-9]*/compileSdk = 36/g' "$VOSK_GRADLE_KTS"
-            sed -i 's/compileSdkVersion = [0-9]*/compileSdkVersion = 36/g' "$VOSK_GRADLE_KTS"
-            echo "--- After ---"
-            grep -i "compileSdk" "$VOSK_GRADLE_KTS" || echo "(no compileSdk line)"
           fi
 
       - name: Build APK
