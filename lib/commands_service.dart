@@ -10,11 +10,11 @@ class VoiceCommand {
 
 class CommandsService {
   String _url = '';
-  String _wakeWord = 'зефирка';
+  List<String> _wakeWords = ['малышка', 'малыш'];
   List<VoiceCommand> _commands = [];
 
   String get url => _url;
-  String get wakeWord => _wakeWord;
+  List<String> get wakeWords => _wakeWords;
   List<VoiceCommand> get commands => _commands;
 
   Future<void> load() async {
@@ -53,10 +53,18 @@ class CommandsService {
     final data = json.decode(raw);
 
     _url = (data['url'] ?? '').toString();
-    _wakeWord = (data['wake_word'] ?? 'малыш,малышка')
-        .toString()
-        .toLowerCase()
-        .trim();
+
+    _wakeWords = [];
+    final wakeList = data['wake_words'] as List?;
+    if (wakeList != null) {
+      for (final w in wakeList) {
+        final s = w.toString().toLowerCase().trim();
+        if (s.isNotEmpty) _wakeWords.add(s);
+      }
+    }
+    if (_wakeWords.isEmpty) {
+      _wakeWords = ['малышка', 'малыш'];
+    }
 
     _commands = [];
     final list = data['commands'] as List? ?? [];
@@ -69,18 +77,25 @@ class CommandsService {
     }
   }
 
-  // Проверка: содержит ли текст wake word
+  // Проверка: содержит ли текст хотя бы один wake word
   bool hasWakeWord(String text) {
     final lower = text.toLowerCase().trim();
-    return lower.contains(_wakeWord);
+    for (final w in _wakeWords) {
+      if (lower.contains(w)) return true;
+    }
+    return false;
   }
 
-  // Убрать wake word из текста
+  // Убрать wake word из текста (первое совпадение)
   String stripWakeWord(String text) {
     final lower = text.toLowerCase();
-    final idx = lower.indexOf(_wakeWord);
-    if (idx < 0) return text.trim();
-    return text.substring(0, idx) + text.substring(idx + _wakeWord.length);
+    for (final w in _wakeWords) {
+      final idx = lower.indexOf(w);
+      if (idx >= 0) {
+        return (text.substring(0, idx) + text.substring(idx + w.length)).trim();
+      }
+    }
+    return text.trim();
   }
 
   // Найти команду
