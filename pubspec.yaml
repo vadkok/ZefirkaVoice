@@ -16,11 +16,8 @@ dependencies:
   path_provider: ^2.1.1
   vosk_flutter_fixed: ^0.1.4
   
-  # Скачивание модели
   http: ^1.2.0
-  
-  # Распаковка zip
-  archive: ^3.6.1
+  archive: ^4.3.0
 
 dev_dependencies:
   flutter_test:
