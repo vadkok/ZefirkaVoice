@@ -140,8 +140,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    with WidgetsBindingObserver {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final VoskService _vosk = VoskService();
   final CommandsService _commands = CommandsService();
 
@@ -152,6 +151,7 @@ class _HomeScreenState extends State<HomeScreen>
   bool _waitingForCommand = false;
   String _lastText = '';
   String _lastAction = '';
+  String _cmdSource = '';
 
   @override
   void initState() {
@@ -207,6 +207,9 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _init() async {
     await _commands.load();
+    if (mounted) {
+      setState(() => _cmdSource = _commands.source);
+    }
 
     final status = await Permission.microphone.request();
     if (!status.isGranted) {
@@ -264,7 +267,7 @@ class _HomeScreenState extends State<HomeScreen>
   void _executeCommand(VoiceCommand cmd) {
     _doFlash();
     setState(() {
-      _lastAction = 'Команда: ${cmd.phrase}';
+      _lastAction = 'Команда: ${_commands.primaryPhrase(cmd)}';
     });
   }
 
@@ -282,7 +285,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     if (_isListening) {
-      // СТОП
       await _vosk.stop();
       setState(() {
         _isListening = false;
@@ -291,7 +293,6 @@ class _HomeScreenState extends State<HomeScreen>
         _lastText = '';
       });
     } else {
-      // СТАРТ — полный пересбор Vosk
       setState(() => _lastText = 'Запуск...');
       await _restartVosk();
     }
@@ -342,6 +343,22 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
 
+              // Источник команд (сверху)
+              Positioned(
+                top: 40,
+                left: 20,
+                right: 20,
+                child: Text(
+                  _cmdSource.isNotEmpty ? 'Команды: $_cmdSource' : '',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: const Color(0xFF7CBFAD).withOpacity(0.5),
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+
+              // Распознанный текст
               if (_lastText.isNotEmpty)
                 Positioned(
                   bottom: 80,
@@ -372,6 +389,7 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                 ),
 
+              // Найденная команда
               if (_lastAction.isNotEmpty)
                 Positioned(
                   bottom: 30,
