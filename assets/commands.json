@@ -3,23 +3,31 @@
   "wake_words": ["малышка", "малыш", "малышко"],
   "commands": [
     {
-      "phrases": ["старт", "пуск", "начни", "поехали"],
+      "phrases": ["старт", "пуск", "начни", "поехали", "запусти"],
       "json": "[{\"action\":\"startStreaming\"}]"
     },
     {
-      "phrases": ["стоп", "остановись", "останови", "хватит", "стой"],
+      "phrases": ["стоп", "остановись", "останови", "хватит", "стой", "замри"],
       "json": "[{\"action\":\"stop\"}]"
     },
     {
-      "phrases": ["быстрее", "быстро", "ускорь", "прибавь"],
+      "phrases": ["быстрее", "быстро", "ускорь", "прибавь", "разгон"],
       "json": "[{\"action\":\"setSpeed\",\"speed\":70}]"
     },
     {
-      "phrases": ["медленнее", "медленно", "замедлись", "убавь"],
+      "phrases": ["медленнее", "медленно", "замедлись", "убавь", "тормоз"],
       "json": "[{\"action\":\"setSpeed\",\"speed\":30}]"
     },
     {
-      "phrases": ["глубже", "губы", "глубо", "глубчи", "глупы"],
+      "phrases": ["средняя скорость", "средне"],
+      "json": "[{\"action\":\"setSpeed\",\"speed\":50}]"
+    },
+    {
+      "phrases": ["максимальная скорость", "на максимум", "полный газ"],
+      "json": "[{\"action\":\"setSpeed\",\"speed\":100}]"
+    },
+    {
+      "phrases": ["глубже", "губы", "глубо", "глубчи", "вниз"],
       "json": "[{\"action\":\"setDepth\",\"depth\":70}]"
     },
     {
@@ -27,12 +35,84 @@
       "json": "[{\"action\":\"setDepth\",\"depth\":30}]"
     },
     {
-      "phrases": ["амплитуда больше", "больше амплитуда", "амплитуда"],
+      "phrases": ["средняя глубина", "по центру"],
+      "json": "[{\"action\":\"setDepth\",\"depth\":50}]"
+    },
+    {
+      "phrases": ["очень глубоко", "на всю глубину"],
+      "json": "[{\"action\":\"setDepth\",\"depth\":90}]"
+    },
+    {
+      "phrases": ["амплитуда больше", "больше амплитуда", "шире", "размах"],
       "json": "[{\"action\":\"setStroke\",\"stroke\":70}]"
     },
     {
-      "phrases": ["амплитуда меньше", "меньше амплитуда"],
+      "phrases": ["амплитуда меньше", "меньше амплитуда", "уже"],
       "json": "[{\"action\":\"setStroke\",\"stroke\":30}]"
+    },
+    {
+      "phrases": ["средняя амплитуда"],
+      "json": "[{\"action\":\"setStroke\",\"stroke\":50}]"
+    },
+    {
+      "phrases": ["режим один", "первый режим"],
+      "json": "[{\"action\":\"setSensation\",\"value\":50}]"
+    },
+    {
+      "phrases": ["режим ноль", "нейтрально"],
+      "json": "[{\"action\":\"setSensation\",\"value\":0}]"
+    },
+    {
+      "phrases": ["режим минус", "обратный режим"],
+      "json": "[{\"action\":\"setSensation\",\"value\":-50}]"
+    },
+    {
+      "phrases": ["паттерн один", "первый паттерн", "простой"],
+      "json": "[{\"action\":\"setPattern\",\"pattern\":0},{\"action\":\"startPattern\"}]"
+    },
+    {
+      "phrases": ["паттерн два", "второй паттерн", "дразни"],
+      "json": "[{\"action\":\"setPattern\",\"pattern\":1},{\"action\":\"startPattern\"}]"
+    },
+    {
+      "phrases": ["паттерн три", "третий паттерн", "робот"],
+      "json": "[{\"action\":\"setPattern\",\"pattern\":2},{\"action\":\"startPattern\"}]"
+    },
+    {
+      "phrases": ["паттерн четыре", "четвёртый паттерн", "пополам"],
+      "json": "[{\"action\":\"setPattern\",\"pattern\":3},{\"action\":\"startPattern\"}]"
+    },
+    {
+      "phrases": ["паттерн пять", "пятый паттерн", "глубже паттерн"],
+      "json": "[{\"action\":\"setPattern\",\"pattern\":4},{\"action\":\"startPattern\"}]"
+    },
+    {
+      "phrases": ["паттерн шесть", "шестой паттерн", "стоп энд гоу"],
+      "json": "[{\"action\":\"setPattern\",\"pattern\":5},{\"action\":\"startPattern\"}]"
+    },
+    {
+      "phrases": ["паттерн семь", "седьмой паттерн", "настойчиво"],
+      "json": "[{\"action\":\"setPattern\",\"pattern\":6},{\"action\":\"startPattern\"}]"
+    },
+    {
+      "phrases": ["паттерн восемь", "восьмой паттерн", "молот"],
+      "json": "[{\"action\":\"setPattern\",\"pattern\":7},{\"action\":\"startPattern\"}]"
+    },
+    {
+      "phrases": ["паттерн девять", "девятый паттерн", "кусака"],
+      "json": "[{\"action\":\"setPattern\",\"pattern\":8},{\"action\":\"startPattern\"}]"
+    },
+    {
+      "phrases": ["следующий паттерн", "дальше"],
+      "json": "[{\"action\":\"setPattern\",\"pattern\":0},{\"action\":\"startPattern\"}]"
+    },
+    {
+      "phrases": ["калибровка", "калибруй", "домой"],
+      "json": "[{\"action\":\"home\"}]"
+    },
+    {
+      "phrases": ["отключись", "выключи мотор", "отключи мотор"],
+      "json": "[{\"action\":\"disable\"}]"
     }
   ]
 }
