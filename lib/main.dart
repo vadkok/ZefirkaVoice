@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'download_service.dart';
@@ -154,7 +155,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _waitingForCommand = false;
   String _lastText = '';
   String _lastAction = '';
-  String _cmdSource = '';
+
+  // >>> Шторка
+  bool _drawerOpen = false;
+  // Высота шторки (такая же, как была раньше для двух плашек + отступ)
+  static const double _drawerHeight = 180;
+
+  // >>> Авто-скрытие плашки "Отправлено"
+  Timer? _actionTimer;
 
   @override
   void initState() {
@@ -210,9 +218,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _init() async {
     await _commands.load();
-    if (mounted) {
-      setState(() => _cmdSource = _commands.source);
-    }
 
     // WebSocket — подключение
     if (_commands.url.isNotEmpty) {
@@ -287,6 +292,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           : 'Ошибка: нет связи';
     });
 
+    // >>> Авто-скрытие через 2 секунды
+    _actionTimer?.cancel();
+    _actionTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _lastAction = '');
+    });
+
     if (!sent) {
       _reconnectWs();
     }
@@ -315,11 +326,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onSaved: () {
             if (mounted) {
               setState(() {
-                _cmdSource = _commands.source;
                 _lastAction = 'Команды обновлены';
               });
+              _actionTimer?.cancel();
+              _actionTimer = Timer(const Duration(seconds: 2), () {
+                if (mounted) setState(() => _lastAction = '');
+              });
             }
-            // Переподключаемся к новому URL (если изменился)
             _reconnectWs();
           },
         ),
@@ -347,9 +360,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
+  // >>> Управление шторкой
+  void _openDrawer() {
+    if (!_drawerOpen) setState(() => _drawerOpen = true);
+  }
+
+  void _closeDrawer() {
+    if (_drawerOpen) setState(() => _drawerOpen = false);
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _actionTimer?.cancel();
     _vosk.dispose();
     _ws.disconnect();
     super.dispose();
@@ -357,15 +380,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    // Область свайпа — нижние 25% экрана (можно потянуть вверх)
+    final swipeZoneHeight = screenHeight * 0.25;
+
     return Scaffold(
       backgroundColor: Colors.black,
-      body: GestureDetector(
-        onTap: _toggleListening,
-        behavior: HitTestBehavior.opaque,
-        child: SizedBox.expand(
-          child: Stack(
-            children: [
-              Center(
+      body: Stack(
+        children: [
+          // ===== ОСНОВНОЙ ЖЕСТ: тап — слушать/не слушать =====
+          GestureDetector(
+            onTap: _toggleListening,
+            behavior: HitTestBehavior.opaque,
+            child: SizedBox.expand(
+              child: Center(
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 400),
                   opacity: _isListening ? 0.85 : 0.15,
@@ -392,25 +420,37 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ),
               ),
+            ),
+          ),
 
-              // Источник команд
-              Positioned(
-                top: 50,
-                left: 20,
-                right: 120,
-                child: Text(
-                  _cmdSource.isNotEmpty ? 'Команды: $_cmdSource' : '',
-                  style: TextStyle(
-                    color: const Color(0xFF7CBFAD).withOpacity(0.5),
-                    fontSize: 11,
-                  ),
-                ),
+          // ===== ОБЛАСТЬ СВАЙПА СНИЗУ ВВЕРХ (открыть шторку) =====
+          if (!_drawerOpen)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: swipeZoneHeight,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onVerticalDragEnd: (details) {
+                  if (details.primaryVelocity != null &&
+                      details.primaryVelocity! < -200) {
+                    _openDrawer();
+                  }
+                },
+                child: const SizedBox.expand(),
               ),
+            ),
 
-              // Кнопка "команды"
-              Positioned(
-                top: 40,
-                right: 20,
+          // ===== КНОПКА "КОМАНДЫ" (видна только когда шторка открыта) =====
+          Positioned(
+            top: 40,
+            right: 20,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 250),
+              opacity: _drawerOpen ? 1.0 : 0.0,
+              child: IgnorePointer(
+                ignoring: !_drawerOpen,
                 child: GestureDetector(
                   onTap: _openEditor,
                   child: Container(
@@ -436,67 +476,119 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ),
               ),
-
-              // Распознанный текст
-              if (_lastText.isNotEmpty)
-                Positioned(
-                  bottom: 80,
-                  left: 20,
-                  right: 20,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: const Color(0xFF7CBFAD).withOpacity(0.4),
-                      ),
-                    ),
-                    child: Text(
-                      _lastText,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF7CBFAD),
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-
-              // Найденная команда
-              if (_lastAction.isNotEmpty)
-                Positioned(
-                  bottom: 30,
-                  left: 20,
-                  right: 20,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF7CBFAD).withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      _lastAction,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Color(0xFF7CBFAD),
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+            ),
           ),
-        ),
+
+          // ===== ШТОРКА (снизу вверх) =====
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+            left: 0,
+            right: 0,
+            bottom: _drawerOpen ? 0 : -_drawerHeight - 20,
+            height: _drawerHeight,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onVerticalDragEnd: (details) {
+                if (details.primaryVelocity != null &&
+                    details.primaryVelocity! > 200) {
+                  _closeDrawer();
+                }
+              },
+              onTap: _closeDrawer,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.92),
+                  border: Border(
+                    top: BorderSide(
+                      color: const Color(0xFF7CBFAD).withOpacity(0.4),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Ручка шторки
+                    Container(
+                      width: 40,
+                      height: 3,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF7CBFAD).withOpacity(0.4),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+
+                    // Распознанный текст
+                    Expanded(
+                      child: Container(
+                        width: double.infinity,
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFF7CBFAD).withOpacity(0.4),
+                          ),
+                        ),
+                        child: Text(
+                          _lastText.isEmpty ? '...' : _lastText,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: const Color(0xFF7CBFAD)
+                                .withOpacity(_lastText.isEmpty ? 0.4 : 1.0),
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    // Плашка "Отправлено" — прозрачная, только обводка + мятный текст
+                    AnimatedOpacity(
+                      duration: const Duration(milliseconds: 250),
+                      opacity: _lastAction.isNotEmpty ? 1.0 : 0.0,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.transparent,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFF7CBFAD).withOpacity(0.5),
+                          ),
+                        ),
+                        child: Text(
+                          _lastAction,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF7CBFAD),
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
