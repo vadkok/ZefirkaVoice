@@ -28,6 +28,10 @@ jobs:
           flutter create . --platforms android
           flutter pub get
 
+      - name: Generate launcher icons
+        run: |
+          dart run flutter_launcher_icons
+
       - name: Add INTERNET permission
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
