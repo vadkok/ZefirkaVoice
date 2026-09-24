@@ -92,7 +92,6 @@ class _SplashScreenState extends State<SplashScreen> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // ===== Картинка девушки на весь экран =====
           Center(
             child: AnimatedOpacity(
               duration: const Duration(milliseconds: 400),
@@ -106,8 +105,6 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
             ),
           ),
-
-          // ===== Прогресс и статус поверх картинки (внизу) =====
           Positioned(
             left: 32,
             right: 32,
@@ -152,7 +149,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+class _HomeScreenState extends State<HomeScreen>
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   final VoskService _vosk = VoskService();
   final CommandsService _commands = CommandsService();
   final WebSocketService _ws = WebSocketService();
@@ -165,16 +163,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String _lastText = '';
   String _lastAction = '';
 
+  // >>> Состояние WebSocket (для мигания)
+  bool _wsConnected = false;
+
+  // >>> Контроллер мигания девушки
+  late AnimationController _pulseController;
+
   // >>> Шторка
   bool _drawerOpen = false;
 
-  // >>> Авто-скрытие плашки "Отправлено"
   Timer? _actionTimer;
+
+  // Цвета
+  static const Color _mint = Color(0xFF7CBFAD);
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // Контроллер мигания: 1.5 секунды на полный цикл, туда-обратно
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+
     _init();
   }
 
@@ -185,6 +198,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     } else if (state == AppLifecycleState.resumed) {
       if (_wasListening && !_isListening) {
         _restartVosk();
+      }
+    }
+  }
+
+  // >>> Обновление состояния мигания
+  void _updatePulseState() {
+    if (_isListening && !_wsConnected) {
+      // Слушаю, но нет связи — мигает
+      if (!_pulseController.isAnimating) {
+        _pulseController.repeat(reverse: true);
+      }
+    } else {
+      // Или не слушаю, или связь есть — мигание не нужно
+      if (_pulseController.isAnimating) {
+        _pulseController.stop();
+        _pulseController.value = 0;
       }
     }
   }
@@ -211,6 +240,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           _wasListening = true;
           _lastText = 'Слушаю...';
         });
+        _updatePulseState();
       }
     } catch (e) {
       if (mounted) {
@@ -219,6 +249,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           _wasListening = false;
           _lastText = 'Ошибка: $e';
         });
+        _updatePulseState();
       }
     }
   }
@@ -229,10 +260,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // WebSocket — подключение
     if (_commands.url.isNotEmpty) {
       _ws.init(_commands.url);
+
       _ws.onMessage = (text) {
         // Ответы OSSM пока игнорируем
       };
+
+      // >>> Обновляем состояние связи
+      _ws.onConnect = () {
+        if (mounted) {
+          setState(() => _wsConnected = true);
+          _updatePulseState();
+        }
+      };
+
+      _ws.onDisconnect = () {
+        if (mounted) {
+          setState(() => _wsConnected = false);
+          _updatePulseState();
+        }
+      };
+
       await _ws.connect();
+
+      // На случай если уже подключено синхронно
+      if (mounted) {
+        setState(() => _wsConnected = _ws.isConnected);
+        _updatePulseState();
+      }
     }
 
     final status = await Permission.microphone.request();
@@ -299,7 +353,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           : 'Ошибка: нет связи';
     });
 
-    // Авто-скрытие через 2 секунды
     _actionTimer?.cancel();
     _actionTimer = Timer(const Duration(seconds: 2), () {
       if (mounted) setState(() => _lastAction = '');
@@ -361,13 +414,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _waitingForCommand = false;
         _lastText = '';
       });
+      _updatePulseState();
     } else {
       setState(() => _lastText = 'Запуск...');
       await _restartVosk();
     }
   }
 
-  // >>> Управление шторкой
   void _openDrawer() {
     if (!_drawerOpen) setState(() => _drawerOpen = true);
   }
@@ -380,15 +433,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _actionTimer?.cancel();
+    _pulseController.dispose();
     _vosk.dispose();
     _ws.disconnect();
     super.dispose();
   }
 
+  // >>> Вычисляем opacity девушки в зависимости от состояния
+  double _girlOpacity() {
+    if (!_isListening) {
+      return 0.15; // тусклая
+    }
+    if (_wsConnected) {
+      return 0.85; // яркая
+    }
+    // мигает: 0.15 ↔ 0.85 по значению _pulseController (0..1)
+    return 0.15 + (_pulseController.value * 0.7);
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
-    // Область свайпа — нижние 25% экрана
     final swipeZoneHeight = screenHeight * 0.25;
 
     return Scaffold(
@@ -401,36 +466,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             behavior: HitTestBehavior.opaque,
             child: SizedBox.expand(
               child: Center(
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 400),
-                  opacity: _isListening ? 0.85 : 0.15,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    decoration: BoxDecoration(
-                      boxShadow: _flash
-                          ? [
-                              BoxShadow(
-                                color: const Color(0xFF7CBFAD).withOpacity(0.8),
-                                blurRadius: 80,
-                                spreadRadius: 20,
-                              ),
-                            ]
-                          : [],
-                    ),
-                    child: Image.asset(
-                      'girl.png',
-                      fit: BoxFit.contain,
-                      filterQuality: FilterQuality.medium,
-                      color: const Color(0xFF7CBFAD).withOpacity(0.85),
-                      colorBlendMode: BlendMode.modulate,
-                    ),
+                child: AnimatedBuilder(
+                  animation: _pulseController,
+                  builder: (context, child) {
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      decoration: BoxDecoration(
+                        boxShadow: _flash
+                            ? [
+                                BoxShadow(
+                                  color: _mint.withOpacity(0.8),
+                                  blurRadius: 80,
+                                  spreadRadius: 20,
+                                ),
+                              ]
+                            : [],
+                      ),
+                      child: Opacity(
+                        opacity: _girlOpacity(),
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: Image.asset(
+                    'girl.png',
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.medium,
+                    color: _mint.withOpacity(0.85),
+                    colorBlendMode: BlendMode.modulate,
                   ),
                 ),
               ),
             ),
           ),
 
-          // ===== ОБЛАСТЬ СВАЙПА СНИЗУ ВВЕРХ (открыть) =====
+          // ===== ОБЛАСТЬ СВАЙПА СНИЗУ ВВЕРХ =====
           if (!_drawerOpen)
             Positioned(
               left: 0,
@@ -449,7 +519,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ),
 
-          // ===== КНОПКА "КОМАНДЫ" (видна только когда шторка открыта) =====
+          // ===== КНОПКА "КОМАНДЫ" =====
           Positioned(
             top: 40,
             right: 20,
@@ -469,13 +539,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       color: Colors.transparent,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: const Color(0xFF7CBFAD).withOpacity(0.6),
+                        color: _mint.withOpacity(0.6),
                       ),
                     ),
                     child: const Text(
                       'команды',
                       style: TextStyle(
-                        color: Color(0xFF7CBFAD),
+                        color: _mint,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
@@ -486,7 +556,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
 
-          // ===== ПЛАШКИ (выезжают снизу вверх) =====
+          // ===== ПЛАШКИ =====
           AnimatedPositioned(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOutCubic,
@@ -507,7 +577,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    // ===== Плашка распознавания =====
                     GestureDetector(
                       onTap: _closeDrawer,
                       child: Container(
@@ -521,7 +590,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           color: Colors.black.withOpacity(0.75),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: const Color(0xFF7CBFAD).withOpacity(0.5),
+                            color: _mint.withOpacity(0.5),
                             width: 1,
                           ),
                         ),
@@ -532,15 +601,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: const Color(0xFF7CBFAD)
-                                .withOpacity(_lastText.isEmpty ? 0.4 : 1.0),
+                            color: _mint.withOpacity(_lastText.isEmpty ? 0.4 : 1.0),
                             fontSize: 14,
                           ),
                         ),
                       ),
                     ),
 
-                    // ===== Плашка "Отправлено" — только если есть текст =====
                     if (_lastAction.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       GestureDetector(
@@ -555,7 +622,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             color: Colors.transparent,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: const Color(0xFF7CBFAD).withOpacity(0.5),
+                              color: _mint.withOpacity(0.5),
                               width: 1,
                             ),
                           ),
@@ -565,7 +632,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: Color(0xFF7CBFAD),
+                              color: _mint,
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
                             ),
