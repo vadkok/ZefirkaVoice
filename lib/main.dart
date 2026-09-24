@@ -90,45 +90,54 @@ class _SplashScreenState extends State<SplashScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Opacity(
-                opacity: 0.5,
-                child: Image.asset(
-                  'girl.png',
-                  height: 200,
-                  fit: BoxFit.contain,
-                  color: const Color(0xFF7CBFAD).withOpacity(0.85),
-                  colorBlendMode: BlendMode.modulate,
-                ),
+      body: Stack(
+        children: [
+          // ===== Картинка девушки на весь экран =====
+          Center(
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 400),
+              opacity: 0.5,
+              child: Image.asset(
+                'girl.png',
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.medium,
+                color: const Color(0xFF7CBFAD).withOpacity(0.85),
+                colorBlendMode: BlendMode.modulate,
               ),
-              const SizedBox(height: 40),
-              if (_downloading) ...[
-                LinearProgressIndicator(
-                  value: _progress,
-                  backgroundColor: Colors.grey.shade800,
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                    Color(0xFF7CBFAD),
-                  ),
-                  minHeight: 6,
-                ),
-                const SizedBox(height: 12),
-              ],
-              Text(
-                _status,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFF7CBFAD),
-                  fontSize: 14,
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+
+          // ===== Прогресс и статус поверх картинки (внизу) =====
+          Positioned(
+            left: 32,
+            right: 32,
+            bottom: 60,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_downloading) ...[
+                  LinearProgressIndicator(
+                    value: _progress,
+                    backgroundColor: Colors.grey.shade800,
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Color(0xFF7CBFAD),
+                    ),
+                    minHeight: 6,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                Text(
+                  _status,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF7CBFAD),
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -158,8 +167,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   // >>> Шторка
   bool _drawerOpen = false;
-  // Высота шторки (такая же, как была раньше для двух плашек + отступ)
-  static const double _drawerHeight = 180;
 
   // >>> Авто-скрытие плашки "Отправлено"
   Timer? _actionTimer;
@@ -292,7 +299,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           : 'Ошибка: нет связи';
     });
 
-    // >>> Авто-скрытие через 2 секунды
+    // Авто-скрытие через 2 секунды
     _actionTimer?.cancel();
     _actionTimer = Timer(const Duration(seconds: 2), () {
       if (mounted) setState(() => _lastAction = '');
@@ -381,7 +388,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.of(context).size.height;
-    // Область свайпа — нижние 25% экрана (можно потянуть вверх)
+    // Область свайпа — нижние 25% экрана
     final swipeZoneHeight = screenHeight * 0.25;
 
     return Scaffold(
@@ -423,7 +430,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
 
-          // ===== ОБЛАСТЬ СВАЙПА СНИЗУ ВВЕРХ (открыть шторку) =====
+          // ===== ОБЛАСТЬ СВАЙПА СНИЗУ ВВЕРХ (открыть) =====
           if (!_drawerOpen)
             Positioned(
               left: 0,
@@ -479,64 +486,46 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
 
-          // ===== ШТОРКА (снизу вверх) =====
+          // ===== ПЛАШКИ (выезжают снизу вверх) =====
           AnimatedPositioned(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOutCubic,
             left: 0,
             right: 0,
-            bottom: _drawerOpen ? 0 : -_drawerHeight - 20,
-            height: _drawerHeight,
+            bottom: _drawerOpen ? 0 : -200,
+            height: 200,
             child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
+              behavior: HitTestBehavior.translucent,
               onVerticalDragEnd: (details) {
                 if (details.primaryVelocity != null &&
                     details.primaryVelocity! > 200) {
                   _closeDrawer();
                 }
               },
-              onTap: _closeDrawer,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.92),
-                  border: Border(
-                    top: BorderSide(
-                      color: const Color(0xFF7CBFAD).withOpacity(0.4),
-                      width: 1,
-                    ),
-                  ),
-                ),
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    // Ручка шторки
-                    Container(
-                      width: 40,
-                      height: 3,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF7CBFAD).withOpacity(0.4),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-
-                    // Распознанный текст
-                    Expanded(
+                    // ===== Плашка распознавания =====
+                    GestureDetector(
+                      onTap: _closeDrawer,
                       child: Container(
                         width: double.infinity,
-                        alignment: Alignment.center,
+                        constraints: const BoxConstraints(minHeight: 70),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
-                          vertical: 8,
+                          vertical: 12,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(16),
+                          color: Colors.black.withOpacity(0.75),
+                          borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: const Color(0xFF7CBFAD).withOpacity(0.4),
+                            color: const Color(0xFF7CBFAD).withOpacity(0.5),
+                            width: 1,
                           ),
                         ),
+                        alignment: Alignment.center,
                         child: Text(
                           _lastText.isEmpty ? '...' : _lastText,
                           textAlign: TextAlign.center,
@@ -551,38 +540,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                     ),
 
-                    const SizedBox(height: 8),
-
-                    // Плашка "Отправлено" — прозрачная, только обводка + мятный текст
-                    AnimatedOpacity(
-                      duration: const Duration(milliseconds: 250),
-                      opacity: _lastAction.isNotEmpty ? 1.0 : 0.0,
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.transparent,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: const Color(0xFF7CBFAD).withOpacity(0.5),
+                    // ===== Плашка "Отправлено" — только если есть текст =====
+                    if (_lastAction.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: _closeDrawer,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
                           ),
-                        ),
-                        child: Text(
-                          _lastAction,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFF7CBFAD),
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
+                          decoration: BoxDecoration(
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: const Color(0xFF7CBFAD).withOpacity(0.5),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            _lastAction,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF7CBFAD),
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
+
+                    const SizedBox(height: 60),
                   ],
                 ),
               ),
