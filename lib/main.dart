@@ -163,18 +163,17 @@ class _HomeScreenState extends State<HomeScreen>
   String _lastText = '';
   String _lastAction = '';
 
-  // >>> Состояние WebSocket (для мигания)
   bool _wsConnected = false;
 
-  // >>> Контроллер мигания девушки
   late AnimationController _pulseController;
 
-  // >>> Шторка
+  // >>> Таймер переподключения WebSocket
+  Timer? _reconnectTimer;
+
   bool _drawerOpen = false;
 
   Timer? _actionTimer;
 
-  // Цвета
   static const Color _mint = Color(0xFF7CBFAD);
 
   @override
@@ -182,7 +181,6 @@ class _HomeScreenState extends State<HomeScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // Контроллер мигания: 1.5 секунды на полный цикл, туда-обратно
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
@@ -202,20 +200,29 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // >>> Обновление состояния мигания
   void _updatePulseState() {
     if (_isListening && !_wsConnected) {
-      // Слушаю, но нет связи — мигает
       if (!_pulseController.isAnimating) {
         _pulseController.repeat(reverse: true);
       }
     } else {
-      // Или не слушаю, или связь есть — мигание не нужно
       if (_pulseController.isAnimating) {
         _pulseController.stop();
         _pulseController.value = 0;
       }
     }
+  }
+
+  // >>> Планирование переподключения (каждые 3 секунды, пока не подключено)
+  void _scheduleReconnect() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(const Duration(seconds: 3), () async {
+      if (!mounted) return;
+      if (_wsConnected) return; // уже подключились — ничего не делаем
+      await _reconnectWs();
+      // Если всё ещё не подключены — планируем ещё раз
+      if (!_wsConnected) _scheduleReconnect();
+    });
   }
 
   Future<void> _restartVosk() async {
@@ -257,7 +264,6 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _init() async {
     await _commands.load();
 
-    // WebSocket — подключение
     if (_commands.url.isNotEmpty) {
       _ws.init(_commands.url);
 
@@ -265,12 +271,12 @@ class _HomeScreenState extends State<HomeScreen>
         // Ответы OSSM пока игнорируем
       };
 
-      // >>> Обновляем состояние связи
       _ws.onConnect = () {
         if (mounted) {
           setState(() => _wsConnected = true);
           _updatePulseState();
         }
+        _reconnectTimer?.cancel();
       };
 
       _ws.onDisconnect = () {
@@ -278,11 +284,12 @@ class _HomeScreenState extends State<HomeScreen>
           setState(() => _wsConnected = false);
           _updatePulseState();
         }
+        // >>> Автоматически пытаемся переподключиться
+        _scheduleReconnect();
       };
 
       await _ws.connect();
 
-      // На случай если уже подключено синхронно
       if (mounted) {
         setState(() => _wsConnected = _ws.isConnected);
         _updatePulseState();
@@ -433,21 +440,20 @@ class _HomeScreenState extends State<HomeScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _actionTimer?.cancel();
+    _reconnectTimer?.cancel();
     _pulseController.dispose();
     _vosk.dispose();
     _ws.disconnect();
     super.dispose();
   }
 
-  // >>> Вычисляем opacity девушки в зависимости от состояния
   double _girlOpacity() {
     if (!_isListening) {
-      return 0.15; // тусклая
+      return 0.15;
     }
     if (_wsConnected) {
-      return 0.85; // яркая
+      return 0.85;
     }
-    // мигает: 0.15 ↔ 0.85 по значению _pulseController (0..1)
     return 0.15 + (_pulseController.value * 0.7);
   }
 
@@ -460,7 +466,6 @@ class _HomeScreenState extends State<HomeScreen>
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // ===== ОСНОВНОЙ ЖЕСТ: тап — слушать/не слушать =====
           GestureDetector(
             onTap: _toggleListening,
             behavior: HitTestBehavior.opaque,
@@ -500,7 +505,6 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
 
-          // ===== ОБЛАСТЬ СВАЙПА СНИЗУ ВВЕРХ =====
           if (!_drawerOpen)
             Positioned(
               left: 0,
@@ -519,7 +523,6 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
 
-          // ===== КНОПКА "КОМАНДЫ" =====
           Positioned(
             top: 40,
             right: 20,
@@ -556,7 +559,6 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
 
-          // ===== ПЛАШКИ =====
           AnimatedPositioned(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOutCubic,
