@@ -172,8 +172,11 @@ class _HomeScreenState extends State<HomeScreen>
   // >>> Контроллер мигания при потере связи (1.5 сек)
   late AnimationController _pulseController;
 
-  // >>> Контроллер быстрых мигов (300 мс — wake word / команда)
+  // >>> Контроллер быстрых мигов (250 мс — половина мига)
   late AnimationController _flashController;
+
+  // >>> Флаг, что идёт миг
+  bool _isFlashing = false;
 
   Timer? _reconnectTimer;
 
@@ -223,9 +226,10 @@ class _HomeScreenState extends State<HomeScreen>
       duration: const Duration(milliseconds: 1500),
     );
 
+    // >>> 250 мс = половина мига (полный миг = 500 мс)
     _flashController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 250),
     );
 
     _init();
@@ -256,13 +260,19 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  // >>> Миг девушки (times раз, цикл 300 мс)
+  // >>> Миг девушки: яркая → тусклая → яркая (один миг = reverse + forward)
   Future<void> _flashGirl(int times) async {
+    if (_isFlashing) return;
+    _isFlashing = true;
     for (int i = 0; i < times; i++) {
       if (!mounted) return;
-      await _flashController.forward(from: 0);
+      await _flashController.reverse(from: 1);  // яркая → тусклая
       if (!mounted) return;
-      await _flashController.reverse(from: 1);
+      await _flashController.forward(from: 0);  // тусклая → яркая
+    }
+    if (mounted) {
+      _flashController.value = 1;
+      _isFlashing = false;
     }
   }
 
@@ -429,7 +439,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _executeCommand(VoiceCommand cmd) {
-    // >>> Команда отправлена — 2 мига
+    // >>> Команда — 2 мига
     _flashGirl(2);
 
     final sent = _ws.send(cmd.json);
@@ -542,12 +552,9 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
-  // >>> Логика прозрачности девушки:
-  // 1. Если идёт быстрый миг (wake/команда) — показываем миг
-  // 2. Иначе: обычные состояния (яркая / тусклая / мигание при потере)
+  // >>> Логика прозрачности девушки
   double _girlOpacity() {
-    if (_flashController.value > 0) {
-      // Идёт миг — используем его значение
+    if (_isFlashing) {
       return 0.15 + (_flashController.value * 0.7);
     }
     if (!_isListening) return 0.15;
