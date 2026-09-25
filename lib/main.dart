@@ -42,6 +42,12 @@ class _SplashScreenState extends State<SplashScreen> {
   String _status = 'Проверка модели...';
   bool _downloading = false;
 
+  // Светлая тема
+  static const Color _splashBg = Color(0xFFF4FAF8);
+  static const Color _splashAccent = Color(0xFF5FA896);
+  static const Color _splashText = Color(0xFF3D7A6B);
+  static const Color _splashTrack = Color(0xFFC8E6DD);
+
   @override
   void initState() {
     super.initState();
@@ -89,7 +95,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: _splashBg,
       body: Stack(
         children: [
           Center(
@@ -100,7 +106,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 'girl.png',
                 fit: BoxFit.contain,
                 filterQuality: FilterQuality.medium,
-                color: const Color(0xFF7CBFAD).withOpacity(0.85),
+                color: _splashAccent.withOpacity(0.85),
                 colorBlendMode: BlendMode.modulate,
               ),
             ),
@@ -115,9 +121,9 @@ class _SplashScreenState extends State<SplashScreen> {
                 if (_downloading) ...[
                   LinearProgressIndicator(
                     value: _progress,
-                    backgroundColor: Colors.grey.shade800,
+                    backgroundColor: _splashTrack,
                     valueColor: const AlwaysStoppedAnimation<Color>(
-                      Color(0xFF7CBFAD),
+                      _splashAccent,
                     ),
                     minHeight: 6,
                   ),
@@ -127,7 +133,7 @@ class _SplashScreenState extends State<SplashScreen> {
                   _status,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    color: Color(0xFF7CBFAD),
+                    color: _splashText,
                     fontSize: 14,
                   ),
                 ),
@@ -174,10 +180,11 @@ class _HomeScreenState extends State<HomeScreen>
 
   Timer? _actionTimer;
 
-  // >>> Тема
   bool _isDark = false;
 
-  // ============ ЦВЕТА ПОД ТЕМУ ============
+  // >>> Лог для отладки
+  final List<String> _log = [];
+
   Color get _bgColor =>
       _isDark ? Colors.black : const Color(0xFFF4FAF8);
 
@@ -229,6 +236,21 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  // ============ ЛОГ ============
+  void _addLog(String msg) {
+    if (!mounted) return;
+    final now = DateTime.now();
+    final t = '${now.hour.toString().padLeft(2, '0')}:'
+        '${now.minute.toString().padLeft(2, '0')}:'
+        '${now.second.toString().padLeft(2, '0')}';
+    setState(() {
+      _log.add('[$t] $msg');
+      if (_log.length > 50) {
+        _log.removeRange(0, _log.length - 50);
+      }
+    });
+  }
+
   void _updatePulseState() {
     if (_isListening && !_wsConnected) {
       if (!_pulseController.isAnimating) {
@@ -275,6 +297,7 @@ class _HomeScreenState extends State<HomeScreen>
           _lastText = 'Слушаю...';
         });
         _updatePulseState();
+        _addLog('Vosk: слушаю');
       }
     } catch (e) {
       if (mounted) {
@@ -284,6 +307,7 @@ class _HomeScreenState extends State<HomeScreen>
           _lastText = 'Ошибка: $e';
         });
         _updatePulseState();
+        _addLog('Ошибка Vosk: $e');
       }
     }
   }
@@ -291,22 +315,23 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _init() async {
     await _commands.load();
 
-    // >>> Читаем тему из команд
     if (mounted) {
       setState(() => _isDark = _commands.isDark);
+      _addLog('Команды загружены');
     }
 
     if (_commands.url.isNotEmpty) {
       _ws.init(_commands.url);
 
       _ws.onMessage = (text) {
-        // Ответы OSSM пока игнорируем
+        _addLog('<- $text');
       };
 
       _ws.onConnect = () {
         if (mounted) {
           setState(() => _wsConnected = true);
           _updatePulseState();
+          _addLog('WebSocket: подключено');
         }
         _reconnectTimer?.cancel();
       };
@@ -315,6 +340,7 @@ class _HomeScreenState extends State<HomeScreen>
         if (mounted) {
           setState(() => _wsConnected = false);
           _updatePulseState();
+          _addLog('WebSocket: отключено');
         }
         _scheduleReconnect();
       };
@@ -330,6 +356,7 @@ class _HomeScreenState extends State<HomeScreen>
     final status = await Permission.microphone.request();
     if (!status.isGranted) {
       setState(() => _lastText = 'Микрофон не разрешён');
+      _addLog('Микрофон не разрешён');
       return;
     }
 
@@ -349,17 +376,21 @@ class _HomeScreenState extends State<HomeScreen>
       };
 
       setState(() => _voskReady = true);
+      _addLog('Vosk готов');
     } catch (e) {
       setState(() => _lastText = 'Ошибка Vosk: $e');
+      _addLog('Ошибка Vosk: $e');
     }
   }
 
   void _handleResult(String text) {
     final lower = text.toLowerCase();
+    _addLog('Услышано: $text');
 
     if (_commands.hasWakeWord(lower)) {
       _doFlash();
       final cleaned = _commands.stripWakeWord(text);
+      _addLog('Wake word. Команда: "$cleaned"');
 
       final cmd = _commands.findCommand(cleaned);
       if (cmd != null) {
@@ -367,6 +398,7 @@ class _HomeScreenState extends State<HomeScreen>
         setState(() => _waitingForCommand = false);
       } else {
         setState(() => _waitingForCommand = true);
+        _addLog('Команда не найдена, жду');
       }
       return;
     }
@@ -390,6 +422,12 @@ class _HomeScreenState extends State<HomeScreen>
           ? 'Отправлено: ${_commands.primaryPhrase(cmd)}'
           : 'Ошибка: нет связи';
     });
+
+    if (sent) {
+      _addLog('Отправлено: ${_commands.primaryPhrase(cmd)}');
+    } else {
+      _addLog('Отправка не удалась');
+    }
 
     _actionTimer?.cancel();
     _actionTimer = Timer(const Duration(seconds: 2), () {
@@ -431,9 +469,11 @@ class _HomeScreenState extends State<HomeScreen>
               _actionTimer = Timer(const Duration(seconds: 2), () {
                 if (mounted) setState(() => _lastAction = '');
               });
+              _addLog('Команды сохранены');
             }
             _reconnectWs();
           },
+          isDark: _isDark,
         ),
       ),
     );
@@ -454,13 +494,13 @@ class _HomeScreenState extends State<HomeScreen>
         _lastText = '';
       });
       _updatePulseState();
+      _addLog('Vosk: стоп');
     } else {
       setState(() => _lastText = 'Запуск...');
       await _restartVosk();
     }
   }
 
-  // >>> Переключение темы
   Future<void> _toggleTheme() async {
     final newIsDark = !_isDark;
     setState(() => _isDark = newIsDark);
@@ -472,10 +512,12 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _closeDrawer() {
-    if (_drawerOpen) setState(() {
-      _drawerOpen = false;
-      _debugOpen = false;
-    });
+    if (_drawerOpen) {
+      setState(() {
+        _drawerOpen = false;
+        _debugOpen = false;
+      });
+    }
   }
 
   @override
@@ -504,7 +546,6 @@ class _HomeScreenState extends State<HomeScreen>
       backgroundColor: _bgColor,
       body: Stack(
         children: [
-          // ===== ДЕВУШКА =====
           GestureDetector(
             onTap: _toggleListening,
             behavior: HitTestBehavior.opaque,
@@ -544,7 +585,6 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
 
-          // ===== ОБЛАСТЬ СВАЙПА СНИЗУ ВВЕРХ (открыть панель) =====
           if (!_drawerOpen)
             Positioned(
               left: 0,
@@ -563,7 +603,6 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
 
-          // ===== ПАНЕЛЬ =====
           AnimatedPositioned(
             duration: const Duration(milliseconds: 350),
             curve: Curves.easeOutCubic,
@@ -590,7 +629,6 @@ class _HomeScreenState extends State<HomeScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Ручка
                       Container(
                         width: 36,
                         height: 3,
@@ -601,7 +639,6 @@ class _HomeScreenState extends State<HomeScreen>
                         margin: const EdgeInsets.only(bottom: 14),
                       ),
 
-                      // Плашка распознавания
                       GestureDetector(
                         onTap: _closeDrawer,
                         child: Container(
@@ -636,7 +673,6 @@ class _HomeScreenState extends State<HomeScreen>
 
                       const SizedBox(height: 10),
 
-                      // Плашка Отправлено
                       if (_lastAction.isNotEmpty)
                         GestureDetector(
                           onTap: _closeDrawer,
@@ -670,7 +706,6 @@ class _HomeScreenState extends State<HomeScreen>
 
                       const SizedBox(height: 10),
 
-                      // Футер
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
@@ -692,25 +727,46 @@ class _HomeScreenState extends State<HomeScreen>
                         ],
                       ),
 
-                      // Отладочный блок (пока пустой)
                       if (_debugOpen) ...[
                         const SizedBox(height: 10),
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(12),
+                          height: 150,
+                          padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
                             color: _plaqueBg,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: _plaqueBorder),
                           ),
-                          child: Text(
-                            '[лог пульта]',
-                            style: TextStyle(
-                              color: _textSoft,
-                              fontSize: 11,
-                              fontFamily: 'monospace',
-                            ),
-                          ),
+                          child: _log.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    'лог пуст',
+                                    style: TextStyle(
+                                      color: _textSoft.withOpacity(0.4),
+                                      fontSize: 11,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                )
+                              : ListView.builder(
+                                  reverse: true,
+                                  itemCount: _log.length,
+                                  itemBuilder: (context, index) {
+                                    final i = _log.length - 1 - index;
+                                    return Padding(
+                                      padding: const EdgeInsets.only(bottom: 3),
+                                      child: Text(
+                                        _log[i],
+                                        style: TextStyle(
+                                          color: _textSoft,
+                                          fontSize: 10,
+                                          fontFamily: 'monospace',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
                         ),
                       ],
                     ],
