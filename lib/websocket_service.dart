@@ -24,7 +24,10 @@ class WebSocketService {
 
     try {
       _channel = WebSocketChannel.connect(Uri.parse(_url));
-      await _channel!.ready;
+
+      // >>> Таймаут 3 сек на подключение
+      await _channel!.ready.timeout(const Duration(seconds: 3));
+
       _isConnected = true;
 
       _subscription = _channel!.stream.listen(
@@ -44,6 +47,7 @@ class WebSocketService {
       if (onConnect != null) onConnect!();
     } catch (e) {
       _isConnected = false;
+      _channel = null;
     }
   }
 
@@ -58,10 +62,15 @@ class WebSocketService {
   }
 
   Future<void> disconnect() async {
-    await _subscription?.cancel();
-    _subscription = null;
+    // >>> Таймаут 2 сек на отмену подписки
     try {
-      await _channel?.sink.close();
+      await _subscription?.cancel().timeout(const Duration(seconds: 2));
+    } catch (_) {}
+    _subscription = null;
+
+    // >>> Таймаут 2 сек на закрытие канала
+    try {
+      await _channel?.sink.close().timeout(const Duration(seconds: 2));
     } catch (_) {}
     _channel = null;
     _isConnected = false;
