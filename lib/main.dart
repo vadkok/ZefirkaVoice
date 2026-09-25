@@ -413,7 +413,6 @@ class _HomeScreenState extends State<HomeScreen>
     _addLog('Услышано: $text');
 
     if (_commands.hasWakeWord(lower)) {
-      _flashGirl(1);
       final cleaned = _commands.stripWakeWord(text);
       _addLog('Wake word. Команда: "$cleaned"');
 
@@ -438,9 +437,12 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _executeCommand(VoiceCommand cmd) {
-    _flashGirl(2);
-
     final sent = _ws.send(cmd.json);
+
+    // >>> Миг ТОЛЬКО если команда отправлена успешно
+    if (sent) {
+      _flashGirl(1);
+    }
 
     setState(() {
       _lastAction = sent
@@ -594,7 +596,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
 
-          // ===== ПОДСКАЗКА "СВАЙП ↑ — ПАНЕЛЬ" =====
+          // ===== ПОДСКАЗКА =====
           if (!_drawerOpen)
             Positioned(
               bottom: 12,
