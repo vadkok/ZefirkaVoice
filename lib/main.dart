@@ -42,7 +42,6 @@ class _SplashScreenState extends State<SplashScreen> {
   String _status = 'Проверка модели...';
   bool _downloading = false;
 
-  // Светлая тема
   static const Color _splashBg = Color(0xFFF4FAF8);
   static const Color _splashAccent = Color(0xFF5FA896);
   static const Color _splashText = Color(0xFF3D7A6B);
@@ -163,7 +162,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   bool _isListening = false;
   bool _wasListening = false;
-  bool _flash = false;
   bool _voskReady = false;
   bool _waitingForCommand = false;
   String _lastText = '';
@@ -171,7 +169,11 @@ class _HomeScreenState extends State<HomeScreen>
 
   bool _wsConnected = false;
 
+  // >>> Контроллер мигания при потере связи (1.5 сек)
   late AnimationController _pulseController;
+
+  // >>> Контроллер быстрых мигов (300 мс — wake word / команда)
+  late AnimationController _flashController;
 
   Timer? _reconnectTimer;
 
@@ -182,7 +184,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   bool _isDark = false;
 
-  // >>> Лог для отладки
   final List<String> _log = [];
 
   Color get _bgColor =>
@@ -222,6 +223,11 @@ class _HomeScreenState extends State<HomeScreen>
       duration: const Duration(milliseconds: 1500),
     );
 
+    _flashController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+
     _init();
   }
 
@@ -236,7 +242,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // ============ ЛОГ ============
   void _addLog(String msg) {
     if (!mounted) return;
     final now = DateTime.now();
@@ -249,6 +254,16 @@ class _HomeScreenState extends State<HomeScreen>
         _log.removeRange(0, _log.length - 50);
       }
     });
+  }
+
+  // >>> Миг девушки (times раз, цикл 300 мс)
+  Future<void> _flashGirl(int times) async {
+    for (int i = 0; i < times; i++) {
+      if (!mounted) return;
+      await _flashController.forward(from: 0);
+      if (!mounted) return;
+      await _flashController.reverse(from: 1);
+    }
   }
 
   void _updatePulseState() {
@@ -388,7 +403,8 @@ class _HomeScreenState extends State<HomeScreen>
     _addLog('Услышано: $text');
 
     if (_commands.hasWakeWord(lower)) {
-      _doFlash();
+      // >>> Wake word — 1 миг
+      _flashGirl(1);
       final cleaned = _commands.stripWakeWord(text);
       _addLog('Wake word. Команда: "$cleaned"');
 
@@ -413,7 +429,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _executeCommand(VoiceCommand cmd) {
-    _doFlash();
+    // >>> Команда отправлена — 2 мига
+    _flashGirl(2);
 
     final sent = _ws.send(cmd.json);
 
@@ -445,13 +462,6 @@ class _HomeScreenState extends State<HomeScreen>
       _ws.init(_commands.url);
       await _ws.connect();
     }
-  }
-
-  void _doFlash() {
-    setState(() => _flash = true);
-    Future.delayed(const Duration(milliseconds: 200), () {
-      if (mounted) setState(() => _flash = false);
-    });
   }
 
   Future<void> _openEditor() async {
@@ -526,12 +536,20 @@ class _HomeScreenState extends State<HomeScreen>
     _actionTimer?.cancel();
     _reconnectTimer?.cancel();
     _pulseController.dispose();
+    _flashController.dispose();
     _vosk.dispose();
     _ws.disconnect();
     super.dispose();
   }
 
+  // >>> Логика прозрачности девушки:
+  // 1. Если идёт быстрый миг (wake/команда) — показываем миг
+  // 2. Иначе: обычные состояния (яркая / тусклая / мигание при потере)
   double _girlOpacity() {
+    if (_flashController.value > 0) {
+      // Идёт миг — используем его значение
+      return 0.15 + (_flashController.value * 0.7);
+    }
     if (!_isListening) return 0.15;
     if (_wsConnected) return 0.85;
     return 0.15 + (_pulseController.value * 0.7);
@@ -552,25 +570,11 @@ class _HomeScreenState extends State<HomeScreen>
             child: SizedBox.expand(
               child: Center(
                 child: AnimatedBuilder(
-                  animation: _pulseController,
+                  animation: Listenable.merge([_pulseController, _flashController]),
                   builder: (context, child) {
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      decoration: BoxDecoration(
-                        boxShadow: _flash
-                            ? [
-                                BoxShadow(
-                                  color: _accent.withOpacity(0.8),
-                                  blurRadius: 80,
-                                  spreadRadius: 20,
-                                ),
-                              ]
-                            : [],
-                      ),
-                      child: Opacity(
-                        opacity: _girlOpacity(),
-                        child: child,
-                      ),
+                    return Opacity(
+                      opacity: _girlOpacity(),
+                      child: child,
                     );
                   },
                   child: Image.asset(
