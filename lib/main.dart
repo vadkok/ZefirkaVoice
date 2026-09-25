@@ -167,14 +167,43 @@ class _HomeScreenState extends State<HomeScreen>
 
   late AnimationController _pulseController;
 
-  // >>> Таймер переподключения WebSocket
   Timer? _reconnectTimer;
 
   bool _drawerOpen = false;
+  bool _debugOpen = false;
 
   Timer? _actionTimer;
 
-  static const Color _mint = Color(0xFF7CBFAD);
+  // >>> Тема
+  bool _isDark = false;
+
+  // ============ ЦВЕТА ПОД ТЕМУ ============
+  Color get _bgColor =>
+      _isDark ? Colors.black : const Color(0xFFF4FAF8);
+
+  Color get _accent =>
+      _isDark ? const Color(0xFF7CBFAD) : const Color(0xFF5FA896);
+
+  Color get _textColor =>
+      _isDark ? const Color(0xFF7CBFAD) : const Color(0xFF3D7A6B);
+
+  Color get _textSoft =>
+      _isDark ? const Color(0xFF7CBFAD) : const Color(0xFF5FA896);
+
+  Color get _panelBg =>
+      _isDark ? const Color(0xFF0A0A0A) : Colors.white;
+
+  Color get _panelBorder => _isDark
+      ? const Color(0xFF7CBFAD).withOpacity(0.4)
+      : const Color(0xFFC8E6DD);
+
+  Color get _plaqueBg => _isDark
+      ? Colors.black.withOpacity(0.75)
+      : const Color(0xFFF4FAF8);
+
+  Color get _plaqueBorder => _isDark
+      ? const Color(0xFF7CBFAD).withOpacity(0.5)
+      : const Color(0xFFC8E6DD);
 
   @override
   void initState() {
@@ -213,14 +242,12 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // >>> Планирование переподключения (каждые 3 секунды, пока не подключено)
   void _scheduleReconnect() {
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(const Duration(seconds: 3), () async {
       if (!mounted) return;
-      if (_wsConnected) return; // уже подключились — ничего не делаем
+      if (_wsConnected) return;
       await _reconnectWs();
-      // Если всё ещё не подключены — планируем ещё раз
       if (!_wsConnected) _scheduleReconnect();
     });
   }
@@ -264,6 +291,11 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _init() async {
     await _commands.load();
 
+    // >>> Читаем тему из команд
+    if (mounted) {
+      setState(() => _isDark = _commands.isDark);
+    }
+
     if (_commands.url.isNotEmpty) {
       _ws.init(_commands.url);
 
@@ -284,7 +316,6 @@ class _HomeScreenState extends State<HomeScreen>
           setState(() => _wsConnected = false);
           _updatePulseState();
         }
-        // >>> Автоматически пытаемся переподключиться
         _scheduleReconnect();
       };
 
@@ -394,6 +425,7 @@ class _HomeScreenState extends State<HomeScreen>
             if (mounted) {
               setState(() {
                 _lastAction = 'Команды обновлены';
+                _isDark = _commands.isDark;
               });
               _actionTimer?.cancel();
               _actionTimer = Timer(const Duration(seconds: 2), () {
@@ -428,12 +460,22 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  // >>> Переключение темы
+  Future<void> _toggleTheme() async {
+    final newIsDark = !_isDark;
+    setState(() => _isDark = newIsDark);
+    await _commands.saveTheme(newIsDark ? 'dark' : 'light');
+  }
+
   void _openDrawer() {
     if (!_drawerOpen) setState(() => _drawerOpen = true);
   }
 
   void _closeDrawer() {
-    if (_drawerOpen) setState(() => _drawerOpen = false);
+    if (_drawerOpen) setState(() {
+      _drawerOpen = false;
+      _debugOpen = false;
+    });
   }
 
   @override
@@ -448,12 +490,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   double _girlOpacity() {
-    if (!_isListening) {
-      return 0.15;
-    }
-    if (_wsConnected) {
-      return 0.85;
-    }
+    if (!_isListening) return 0.15;
+    if (_wsConnected) return 0.85;
     return 0.15 + (_pulseController.value * 0.7);
   }
 
@@ -463,9 +501,10 @@ class _HomeScreenState extends State<HomeScreen>
     final swipeZoneHeight = screenHeight * 0.25;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: _bgColor,
       body: Stack(
         children: [
+          // ===== ДЕВУШКА =====
           GestureDetector(
             onTap: _toggleListening,
             behavior: HitTestBehavior.opaque,
@@ -480,7 +519,7 @@ class _HomeScreenState extends State<HomeScreen>
                         boxShadow: _flash
                             ? [
                                 BoxShadow(
-                                  color: _mint.withOpacity(0.8),
+                                  color: _accent.withOpacity(0.8),
                                   blurRadius: 80,
                                   spreadRadius: 20,
                                 ),
@@ -497,7 +536,7 @@ class _HomeScreenState extends State<HomeScreen>
                     'girl.png',
                     fit: BoxFit.contain,
                     filterQuality: FilterQuality.medium,
-                    color: _mint.withOpacity(0.85),
+                    color: _accent.withOpacity(0.85),
                     colorBlendMode: BlendMode.modulate,
                   ),
                 ),
@@ -505,6 +544,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
 
+          // ===== ОБЛАСТЬ СВАЙПА СНИЗУ ВВЕРХ (открыть панель) =====
           if (!_drawerOpen)
             Positioned(
               left: 0,
@@ -523,49 +563,13 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
 
-          Positioned(
-            top: 40,
-            right: 20,
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 250),
-              opacity: _drawerOpen ? 1.0 : 0.0,
-              child: IgnorePointer(
-                ignoring: !_drawerOpen,
-                child: GestureDetector(
-                  onTap: _openEditor,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: _mint.withOpacity(0.6),
-                      ),
-                    ),
-                    child: const Text(
-                      'команды',
-                      style: TextStyle(
-                        color: _mint,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-
+          // ===== ПАНЕЛЬ =====
           AnimatedPositioned(
-            duration: const Duration(milliseconds: 300),
+            duration: const Duration(milliseconds: 350),
             curve: Curves.easeOutCubic,
             left: 0,
             right: 0,
-            bottom: _drawerOpen ? 0 : -200,
-            height: 200,
+            bottom: _drawerOpen ? 0 : -400,
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
               onVerticalDragEnd: (details) {
@@ -575,81 +579,170 @@ class _HomeScreenState extends State<HomeScreen>
                 }
               },
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    GestureDetector(
-                      onTap: _closeDrawer,
-                      child: Container(
-                        width: double.infinity,
-                        constraints: const BoxConstraints(minHeight: 70),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _panelBg,
+                    border: Border.all(color: _panelBorder),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Ручка
+                      Container(
+                        width: 36,
+                        height: 3,
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.75),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: _mint.withOpacity(0.5),
-                            width: 1,
-                          ),
+                          color: _textSoft.withOpacity(0.5),
+                          borderRadius: BorderRadius.circular(2),
                         ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          _lastText.isEmpty ? '...' : _lastText,
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: _mint.withOpacity(_lastText.isEmpty ? 0.4 : 1.0),
-                            fontSize: 14,
-                          ),
-                        ),
+                        margin: const EdgeInsets.only(bottom: 14),
                       ),
-                    ),
 
-                    if (_lastAction.isNotEmpty) ...[
-                      const SizedBox(height: 8),
+                      // Плашка распознавания
                       GestureDetector(
                         onTap: _closeDrawer,
                         child: Container(
                           width: double.infinity,
+                          constraints: const BoxConstraints(minHeight: 60),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
-                            vertical: 10,
+                            vertical: 12,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.transparent,
-                            borderRadius: BorderRadius.circular(20),
+                            color: _plaqueBg,
+                            borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: _mint.withOpacity(0.5),
+                              color: _plaqueBorder,
                               width: 1,
                             ),
                           ),
+                          alignment: Alignment.center,
                           child: Text(
-                            _lastAction,
+                            _lastText.isEmpty ? '...' : _lastText,
                             textAlign: TextAlign.center,
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: _mint,
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
+                            style: TextStyle(
+                              color: _textColor.withOpacity(
+                                  _lastText.isEmpty ? 0.4 : 1.0),
+                              fontSize: 14,
                             ),
                           ),
                         ),
                       ),
-                    ],
 
-                    const SizedBox(height: 60),
-                  ],
+                      const SizedBox(height: 10),
+
+                      // Плашка Отправлено
+                      if (_lastAction.isNotEmpty)
+                        GestureDetector(
+                          onTap: _closeDrawer,
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.transparent,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: _plaqueBorder,
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              _lastAction,
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: _accent,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                      const SizedBox(height: 10),
+
+                      // Футер
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _footerBtn(
+                            text: 'Команды',
+                            onTap: _openEditor,
+                          ),
+                          _footerBtn(
+                            text: _isDark ? 'День' : 'Ночь',
+                            onTap: _toggleTheme,
+                          ),
+                          _footerBtn(
+                            text: 'Отладка',
+                            onTap: () {
+                              setState(() => _debugOpen = !_debugOpen);
+                            },
+                            active: _debugOpen,
+                          ),
+                        ],
+                      ),
+
+                      // Отладочный блок (пока пустой)
+                      if (_debugOpen) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: _plaqueBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: _plaqueBorder),
+                          ),
+                          child: Text(
+                            '[лог пульта]',
+                            style: TextStyle(
+                              color: _textSoft,
+                              fontSize: 11,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _footerBtn({
+    required String text,
+    required VoidCallback onTap,
+    bool active = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: active ? _accent : _textSoft.withOpacity(0.75),
+            fontSize: 11,
+            letterSpacing: 1,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ),
     );
   }
