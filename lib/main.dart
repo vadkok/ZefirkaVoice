@@ -105,8 +105,6 @@ class _SplashScreenState extends State<SplashScreen> {
                 'girl.png',
                 fit: BoxFit.contain,
                 filterQuality: FilterQuality.medium,
-                color: _splashAccent.withOpacity(0.85),
-                colorBlendMode: BlendMode.modulate,
               ),
             ),
           ),
@@ -439,7 +437,6 @@ class _HomeScreenState extends State<HomeScreen>
   void _executeCommand(VoiceCommand cmd) {
     final sent = _ws.send(cmd.json);
 
-    // >>> Миг ТОЛЬКО если команда отправлена успешно
     if (sent) {
       _flashGirl(1);
     }
@@ -553,13 +550,14 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
+  // >>> Прозрачности подобраны под плеер (0.35 в покое, 0.85 при слушании)
   double _girlOpacity() {
     if (_isFlashing) {
-      return 0.15 + (_flashController.value * 0.7);
+      return 0.35 + (_flashController.value * 0.5);
     }
-    if (!_isListening) return 0.15;
+    if (!_isListening) return 0.35;
     if (_wsConnected) return 0.85;
-    return 0.15 + (_pulseController.value * 0.7);
+    return 0.35 + (_pulseController.value * 0.5);
   }
 
   @override
@@ -584,12 +582,11 @@ class _HomeScreenState extends State<HomeScreen>
                       child: child,
                     );
                   },
+                  // >>> Убраны color и colorBlendMode — картинка как есть
                   child: Image.asset(
                     'girl.png',
                     fit: BoxFit.contain,
                     filterQuality: FilterQuality.medium,
-                    color: _accent.withOpacity(0.85),
-                    colorBlendMode: BlendMode.modulate,
                   ),
                 ),
               ),
