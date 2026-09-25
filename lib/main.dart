@@ -169,13 +169,10 @@ class _HomeScreenState extends State<HomeScreen>
 
   bool _wsConnected = false;
 
-  // >>> Контроллер мигания при потере связи (1.5 сек)
   late AnimationController _pulseController;
-
-  // >>> Контроллер быстрых мигов (250 мс — половина мига)
   late AnimationController _flashController;
+  late AnimationController _hintController;
 
-  // >>> Флаг, что идёт миг
   bool _isFlashing = false;
 
   Timer? _reconnectTimer;
@@ -226,11 +223,15 @@ class _HomeScreenState extends State<HomeScreen>
       duration: const Duration(milliseconds: 1500),
     );
 
-    // >>> 250 мс = половина мига (полный миг = 500 мс)
     _flashController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 250),
     );
+
+    _hintController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
 
     _init();
   }
@@ -260,15 +261,14 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  // >>> Миг девушки: яркая → тусклая → яркая (один миг = reverse + forward)
   Future<void> _flashGirl(int times) async {
     if (_isFlashing) return;
     _isFlashing = true;
     for (int i = 0; i < times; i++) {
       if (!mounted) return;
-      await _flashController.reverse(from: 1);  // яркая → тусклая
+      await _flashController.reverse(from: 1);
       if (!mounted) return;
-      await _flashController.forward(from: 0);  // тусклая → яркая
+      await _flashController.forward(from: 0);
     }
     if (mounted) {
       _flashController.value = 1;
@@ -413,7 +413,6 @@ class _HomeScreenState extends State<HomeScreen>
     _addLog('Услышано: $text');
 
     if (_commands.hasWakeWord(lower)) {
-      // >>> Wake word — 1 миг
       _flashGirl(1);
       final cleaned = _commands.stripWakeWord(text);
       _addLog('Wake word. Команда: "$cleaned"');
@@ -439,7 +438,6 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _executeCommand(VoiceCommand cmd) {
-    // >>> Команда — 2 мига
     _flashGirl(2);
 
     final sent = _ws.send(cmd.json);
@@ -547,12 +545,12 @@ class _HomeScreenState extends State<HomeScreen>
     _reconnectTimer?.cancel();
     _pulseController.dispose();
     _flashController.dispose();
+    _hintController.dispose();
     _vosk.dispose();
     _ws.disconnect();
     super.dispose();
   }
 
-  // >>> Логика прозрачности девушки
   double _girlOpacity() {
     if (_isFlashing) {
       return 0.15 + (_flashController.value * 0.7);
@@ -596,6 +594,34 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
 
+          // ===== ПОДСКАЗКА "СВАЙП ↑ — ПАНЕЛЬ" =====
+          if (!_drawerOpen)
+            Positioned(
+              bottom: 12,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: AnimatedBuilder(
+                  animation: _hintController,
+                  builder: (context, _) {
+                    return Opacity(
+                      opacity: 0.3 + (_hintController.value * 0.4),
+                      child: Text(
+                        'свайп ↑ — панель',
+                        style: TextStyle(
+                          color: _textSoft,
+                          fontSize: 10,
+                          letterSpacing: 1.5,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+
+          // ===== ОБЛАСТЬ СВАЙПА =====
           if (!_drawerOpen)
             Positioned(
               left: 0,
@@ -614,6 +640,7 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
 
+          // ===== ПАНЕЛЬ =====
           AnimatedPositioned(
             duration: const Duration(milliseconds: 350),
             curve: Curves.easeOutCubic,
