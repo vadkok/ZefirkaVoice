@@ -36,10 +36,15 @@ class CommandsService {
   List<VoiceCommand> _commands = [];
   String _source = 'не загружено';
 
+  // >>> Тема
+  String _theme = 'light';
+
   String get url => _url;
   List<String> get wakeWords => _wakeWords;
   List<VoiceCommand> get commands => _commands;
   String get source => _source;
+  String get theme => _theme;
+  bool get isDark => _theme == 'dark';
 
   static Future<File> getCommandsFile() async {
     final dir = Directory('/data/data/com.example.zefirka_voice/files');
@@ -92,6 +97,23 @@ class CommandsService {
     }
   }
 
+  // >>> Сохранение темы в commands.json
+  Future<bool> saveTheme(String theme) async {
+    _theme = theme;
+    try {
+      final file = await getCommandsFile();
+      if (!await file.exists()) return false;
+
+      final raw = await file.readAsString();
+      final Map<String, dynamic> data = json.decode(raw);
+      data['theme'] = theme;
+      await file.writeAsString(json.encode(data));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   Future<String> getCurrentJson() async {
     try {
       final file = await getCommandsFile();
@@ -124,6 +146,12 @@ class CommandsService {
     final data = json.decode(raw);
 
     _url = (data['url'] ?? '').toString();
+
+    // >>> Чтение темы
+    _theme = (data['theme'] ?? 'light').toString();
+    if (_theme != 'dark' && _theme != 'light') {
+      _theme = 'light';
+    }
 
     _wakeWords = [];
     final wakeList = data['wake_words'] as List?;
